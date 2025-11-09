@@ -17,7 +17,8 @@ local Theme = {
 	TextDark = Color3.fromRGB(180, 180, 180),
 	Success = Color3.fromRGB(67, 181, 129),
 	Danger = Color3.fromRGB(237, 66, 69),
-	Border = Color3.fromRGB(50, 50, 70)
+	Border = Color3.fromRGB(50, 50, 70),
+	CategoryBg = Color3.fromRGB(30, 30, 42)
 }
 
 -- Create Main Hub
@@ -34,8 +35,8 @@ function UILibrary.new(title)
 	-- Main Frame
 	self.MainFrame = Instance.new("Frame")
 	self.MainFrame.Name = "MainFrame"
-	self.MainFrame.Size = UDim2.new(0, 550, 0, 400)
-	self.MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
+	self.MainFrame.Size = UDim2.new(0, 700, 0, 500)
+	self.MainFrame.Position = UDim2.new(0.5, -350, 0.5, -250)
 	self.MainFrame.BackgroundColor3 = Theme.Background
 	self.MainFrame.BorderSizePixel = 0
 	self.MainFrame.Parent = self.ScreenGui
@@ -91,11 +92,36 @@ function UILibrary.new(title)
 		self:Toggle()
 	end)
 	
+	-- Sidebar for categories
+	self.Sidebar = Instance.new("Frame")
+	self.Sidebar.Name = "Sidebar"
+	self.Sidebar.Size = UDim2.new(0, 180, 1, -50)
+	self.Sidebar.Position = UDim2.new(0, 10, 0, 50)
+	self.Sidebar.BackgroundColor3 = Theme.CategoryBg
+	self.Sidebar.BorderSizePixel = 0
+	self.Sidebar.Parent = self.MainFrame
+	
+	local SidebarCorner = Instance.new("UICorner")
+	SidebarCorner.CornerRadius = UDim.new(0, 8)
+	SidebarCorner.Parent = self.Sidebar
+	
+	local SidebarLayout = Instance.new("UIListLayout")
+	SidebarLayout.Padding = UDim.new(0, 5)
+	SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	SidebarLayout.Parent = self.Sidebar
+	
+	local SidebarPadding = Instance.new("UIPadding")
+	SidebarPadding.PaddingTop = UDim.new(0, 10)
+	SidebarPadding.PaddingBottom = UDim.new(0, 10)
+	SidebarPadding.PaddingLeft = UDim.new(0, 10)
+	SidebarPadding.PaddingRight = UDim.new(0, 10)
+	SidebarPadding.Parent = self.Sidebar
+	
 	-- Content Container
 	self.Container = Instance.new("ScrollingFrame")
 	self.Container.Name = "Container"
-	self.Container.Size = UDim2.new(1, -20, 1, -60)
-	self.Container.Position = UDim2.new(0, 10, 0, 50)
+	self.Container.Size = UDim2.new(1, -210, 1, -60)
+	self.Container.Position = UDim2.new(0, 200, 0, 50)
 	self.Container.BackgroundTransparency = 1
 	self.Container.BorderSizePixel = 0
 	self.Container.ScrollBarThickness = 4
@@ -117,6 +143,22 @@ function UILibrary.new(title)
 	self:MakeDraggable(self.MainFrame, TitleBar)
 	
 	self.Visible = true
+	self.Categories = {}
+	self.CurrentCategory = nil
+	
+	-- Notification Container
+	self.NotificationContainer = Instance.new("Frame")
+	self.NotificationContainer.Name = "NotificationContainer"
+	self.NotificationContainer.Size = UDim2.new(0, 300, 1, 0)
+	self.NotificationContainer.Position = UDim2.new(1, -310, 0, 10)
+	self.NotificationContainer.BackgroundTransparency = 1
+	self.NotificationContainer.Parent = self.ScreenGui
+	
+	local NotifLayout = Instance.new("UIListLayout")
+	NotifLayout.Padding = UDim.new(0, 10)
+	NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	NotifLayout.Parent = self.NotificationContainer
 	
 	return self
 end
@@ -161,13 +203,113 @@ end
 function UILibrary:Toggle()
 	self.Visible = not self.Visible
 	local tween = TweenService:Create(self.MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-		Position = self.Visible and UDim2.new(0.5, -275, 0.5, -200) or UDim2.new(0.5, -275, -0.5, 0)
+		Position = self.Visible and UDim2.new(0.5, -350, 0.5, -250) or UDim2.new(0.5, -350, -0.5, 0)
 	})
 	tween:Play()
 end
 
+-- Add Category (Tab)
+function UILibrary:AddCategory(name, icon)
+	local CategoryButton = Instance.new("TextButton")
+	CategoryButton.Name = name
+	CategoryButton.Size = UDim2.new(1, 0, 0, 35)
+	CategoryButton.BackgroundColor3 = Theme.Secondary
+	CategoryButton.Text = (icon and icon .. "  " or "") .. name
+	CategoryButton.TextColor3 = Theme.TextDark
+	CategoryButton.TextSize = 14
+	CategoryButton.Font = Enum.Font.Gotham
+	CategoryButton.BorderSizePixel = 0
+	CategoryButton.AutoButtonColor = false
+	CategoryButton.TextXAlignment = Enum.TextXAlignment.Left
+	CategoryButton.Parent = self.Sidebar
+	
+	local CategoryPadding = Instance.new("UIPadding")
+	CategoryPadding.PaddingLeft = UDim.new(0, 10)
+	CategoryPadding.Parent = CategoryButton
+	
+	local CategoryCorner = Instance.new("UICorner")
+	CategoryCorner.CornerRadius = UDim.new(0, 6)
+	CategoryCorner.Parent = CategoryButton
+	
+	-- Create container for this category
+	local CategoryContainer = Instance.new("Frame")
+	CategoryContainer.Name = name .. "Container"
+	CategoryContainer.Size = UDim2.new(1, 0, 1, 0)
+	CategoryContainer.BackgroundTransparency = 1
+	CategoryContainer.Visible = false
+	CategoryContainer.Parent = self.Container
+	
+	local Layout = Instance.new("UIListLayout")
+	Layout.Padding = UDim.new(0, 8)
+	Layout.SortOrder = Enum.SortOrder.LayoutOrder
+	Layout.Parent = CategoryContainer
+	
+	Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		self.Container.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 10)
+	end)
+	
+	-- Store category info
+	self.Categories[name] = {
+		Button = CategoryButton,
+		Container = CategoryContainer
+	}
+	
+	-- Set first category as active
+	if not self.CurrentCategory then
+		self:SwitchCategory(name)
+	end
+	
+	CategoryButton.MouseButton1Click:Connect(function()
+		self:SwitchCategory(name)
+	end)
+	
+	CategoryButton.MouseEnter:Connect(function()
+		if self.CurrentCategory ~= name then
+			TweenService:Create(CategoryButton, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Border}):Play()
+		end
+	end)
+	
+	CategoryButton.MouseLeave:Connect(function()
+		if self.CurrentCategory ~= name then
+			TweenService:Create(CategoryButton, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Secondary}):Play()
+		end
+	end)
+	
+	return CategoryContainer
+end
+
+-- Switch Category
+function UILibrary:SwitchCategory(name)
+	if not self.Categories[name] then return end
+	
+	-- Hide all categories
+	for catName, catData in pairs(self.Categories) do
+		catData.Container.Visible = false
+		TweenService:Create(catData.Button, TweenInfo.new(0.2), {
+			BackgroundColor3 = Theme.Secondary,
+			TextColor3 = Theme.TextDark
+		}):Play()
+	end
+	
+	-- Show selected category
+	self.Categories[name].Container.Visible = true
+	TweenService:Create(self.Categories[name].Button, TweenInfo.new(0.2), {
+		BackgroundColor3 = Theme.Accent,
+		TextColor3 = Theme.Text
+	}):Play()
+	
+	self.CurrentCategory = name
+	self.Container.CanvasPosition = Vector2.new(0, 0)
+end
+
 -- Add Button
-function UILibrary:AddButton(text, callback)
+function UILibrary:AddButton(text, callback, parent)
+	parent = parent or self.Container
+	
+	-- If parent is a string, find the category container
+	if type(parent) == "string" and self.Categories[parent] then
+		parent = self.Categories[parent].Container
+	end
 	local Button = Instance.new("TextButton")
 	Button.Name = "Button"
 	Button.Size = UDim2.new(1, 0, 0, 40)
@@ -178,7 +320,7 @@ function UILibrary:AddButton(text, callback)
 	Button.Font = Enum.Font.Gotham
 	Button.BorderSizePixel = 0
 	Button.AutoButtonColor = false
-	Button.Parent = self.Container
+	Button.Parent = parent
 	
 	local ButtonCorner = Instance.new("UICorner")
 	ButtonCorner.CornerRadius = UDim.new(0, 6)
@@ -200,7 +342,13 @@ function UILibrary:AddButton(text, callback)
 end
 
 -- Add Toggle
-function UILibrary:AddToggle(text, default, callback)
+function UILibrary:AddToggle(text, default, callback, parent)
+	parent = parent or self.Container
+	
+	-- If parent is a string, find the category container
+	if type(parent) == "string" and self.Categories[parent] then
+		parent = self.Categories[parent].Container
+	end
 	local ToggleFrame = Instance.new("Frame")
 	ToggleFrame.Name = "Toggle"
 	ToggleFrame.Size = UDim2.new(1, 0, 0, 40)
@@ -373,6 +521,107 @@ function UILibrary:AddLabel(text)
 	LabelCorner.Parent = Label
 	
 	return Label
+end
+
+-- Add Notification
+function UILibrary:Notify(text, duration, notifType)
+	duration = duration or 3
+	notifType = notifType or "info" -- "info", "success", "warning", "error"
+	
+	local colors = {
+		info = Theme.Accent,
+		success = Theme.Success,
+		warning = Color3.fromRGB(250, 166, 26),
+		error = Theme.Danger
+	}
+	
+	local NotifFrame = Instance.new("Frame")
+	NotifFrame.Name = "Notification"
+	NotifFrame.Size = UDim2.new(1, 0, 0, 70)
+	NotifFrame.BackgroundColor3 = Theme.Secondary
+	NotifFrame.BorderSizePixel = 0
+	NotifFrame.ClipsDescendants = true
+	NotifFrame.Parent = self.NotificationContainer
+	
+	-- Start off-screen
+	NotifFrame.Position = UDim2.new(1, 50, 0, 0)
+	
+	local NotifCorner = Instance.new("UICorner")
+	NotifCorner.CornerRadius = UDim.new(0, 8)
+	NotifCorner.Parent = NotifFrame
+	
+	-- Colored accent bar
+	local AccentBar = Instance.new("Frame")
+	AccentBar.Size = UDim2.new(0, 4, 1, 0)
+	AccentBar.BackgroundColor3 = colors[notifType]
+	AccentBar.BorderSizePixel = 0
+	AccentBar.Parent = NotifFrame
+	
+	-- Icon
+	local Icon = Instance.new("TextLabel")
+	Icon.Size = UDim2.new(0, 40, 0, 40)
+	Icon.Position = UDim2.new(0, 15, 0.5, -20)
+	Icon.BackgroundColor3 = colors[notifType]
+	Icon.Text = notifType == "success" and "✓" or notifType == "error" and "✕" or notifType == "warning" and "⚠" or "ⓘ"
+	Icon.TextColor3 = Theme.Text
+	Icon.TextSize = 20
+	Icon.Font = Enum.Font.GothamBold
+	Icon.BorderSizePixel = 0
+	Icon.Parent = NotifFrame
+	
+	local IconCorner = Instance.new("UICorner")
+	IconCorner.CornerRadius = UDim.new(1, 0)
+	IconCorner.Parent = Icon
+	
+	-- Text
+	local TextLabel = Instance.new("TextLabel")
+	TextLabel.Size = UDim2.new(1, -70, 1, -20)
+	TextLabel.Position = UDim2.new(0, 60, 0, 10)
+	TextLabel.BackgroundTransparency = 1
+	TextLabel.Text = text
+	TextLabel.TextColor3 = Theme.Text
+	TextLabel.TextSize = 14
+	TextLabel.Font = Enum.Font.Gotham
+	TextLabel.TextWrapped = true
+	TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+	TextLabel.TextYAlignment = Enum.TextYAlignment.Top
+	TextLabel.Parent = NotifFrame
+	
+	-- Progress bar
+	local ProgressBack = Instance.new("Frame")
+	ProgressBack.Size = UDim2.new(1, -20, 0, 3)
+	ProgressBack.Position = UDim2.new(0, 10, 1, -8)
+	ProgressBack.BackgroundColor3 = Theme.Border
+	ProgressBack.BorderSizePixel = 0
+	ProgressBack.Parent = NotifFrame
+	
+	local ProgressFill = Instance.new("Frame")
+	ProgressFill.Size = UDim2.new(1, 0, 1, 0)
+	ProgressFill.BackgroundColor3 = colors[notifType]
+	ProgressFill.BorderSizePixel = 0
+	ProgressFill.Parent = ProgressBack
+	
+	-- Animate in
+	TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+		Position = UDim2.new(0, 0, 0, 0)
+	}):Play()
+	
+	-- Progress bar animation
+	local progressTween = TweenService:Create(ProgressFill, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+		Size = UDim2.new(0, 0, 1, 0)
+	})
+	progressTween:Play()
+	
+	-- Remove notification
+	task.delay(duration, function()
+		local removeTween = TweenService:Create(NotifFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+			Position = UDim2.new(1, 50, 0, 0)
+		})
+		removeTween:Play()
+		removeTween.Completed:Connect(function()
+			NotifFrame:Destroy()
+		end)
+	end)
 end
 
 return UILibrary
