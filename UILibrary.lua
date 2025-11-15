@@ -19,16 +19,16 @@ local playerGui = player:WaitForChild("PlayerGui")
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local isTablet = UserInputService.TouchEnabled and UserInputService.KeyboardEnabled
 
---// Purple/Blue Gradient Theme (matching the image)
+--// Purple/Blue Gradient Theme
 local theme = {
 	Background = Color3.fromRGB(15, 15, 25),
 	Sidebar = Color3.fromRGB(20, 18, 35),
 	Header = Color3.fromRGB(25, 20, 40),
 	Panel = Color3.fromRGB(28, 25, 45),
-	Accent = Color3.fromRGB(138, 100, 255), -- Purple
+	Accent = Color3.fromRGB(138, 100, 255),
 	AccentHover = Color3.fromRGB(158, 120, 255),
 	AccentDim = Color3.fromRGB(100, 70, 200),
-	AccentBlue = Color3.fromRGB(80, 150, 255), -- Blue accent
+	AccentBlue = Color3.fromRGB(80, 150, 255),
 	ButtonBg = Color3.fromRGB(35, 30, 55),
 	ButtonHover = Color3.fromRGB(45, 40, 65),
 	Text = Color3.fromRGB(230, 230, 240),
@@ -55,7 +55,7 @@ local function create(class, props)
 end
 
 local function roundify(obj, radius)
-	local corner = create("UICorner", {
+	create("UICorner", {
 		CornerRadius = UDim.new(0, radius or 4),
 		Parent = obj
 	})
@@ -75,12 +75,11 @@ local function addGradient(obj, colors, rotation)
 	for i, color in ipairs(colors) do
 		table.insert(keypoints, ColorSequenceKeypoint.new((i - 1) / (#colors - 1), color))
 	end
-	local gradient = create("UIGradient", {
+	create("UIGradient", {
 		Color = ColorSequence.new(keypoints),
 		Rotation = rotation or 0,
 		Parent = obj
 	})
-	return gradient
 end
 
 local function tween(obj, props, duration, style, direction)
@@ -98,19 +97,16 @@ local function getMobileSize()
 	local baseSize = Vector2.new(700, 500)
 	
 	if isMobile then
-		-- Mobile phones: use most of the screen
 		return Vector2.new(
 			math.min(viewportSize.X * 0.95, 450),
 			math.min(viewportSize.Y * 0.85, 600)
 		)
 	elseif isTablet then
-		-- Tablets: slightly larger
 		return Vector2.new(
 			math.min(viewportSize.X * 0.8, 600),
 			math.min(viewportSize.Y * 0.75, 550)
 		)
 	else
-		-- Desktop: original size
 		return baseSize
 	end
 end
@@ -155,7 +151,6 @@ function UILibrary:CreateWindow(config)
 	roundify(Container, isMobile and 16 or 12)
 	addStroke(Container, theme.Border, 1.5)
 
-	-- Mobile: Adjust container on viewport resize
 	if isMobile or isTablet then
 		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			local newSize = getMobileSize()
@@ -165,7 +160,7 @@ function UILibrary:CreateWindow(config)
 		end)
 	end
 
-	--// Header with gradient
+	--// Header
 	local headerHeight = isMobile and 50 or 60
 	local Header = create("Frame", {
 		Name = "Header",
@@ -175,10 +170,7 @@ function UILibrary:CreateWindow(config)
 		Parent = Container
 	})
 	roundify(Header, isMobile and 16 or 12)
-	addGradient(Header, {
-		theme.Accent,
-		theme.AccentBlue
-	}, 45)
+	addGradient(Header, {theme.Accent, theme.AccentBlue}, 45)
 
 	local HeaderBottom = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 12),
@@ -188,7 +180,6 @@ function UILibrary:CreateWindow(config)
 		Parent = Header
 	})
 
-	-- Logo with glow effect
 	local logoSize = isMobile and 32 or 40
 	local Logo = create("TextLabel", {
 		Name = "Logo",
@@ -218,9 +209,8 @@ function UILibrary:CreateWindow(config)
 		Parent = Header
 	})
 
-	-- Search Icon (hidden on small mobile screens)
 	if not isMobile or size.X > 400 then
-		local SearchIcon = create("TextLabel", {
+		create("TextLabel", {
 			Size = UDim2.new(0, 30, 0, 30),
 			Position = UDim2.new(1, -85, 0, (headerHeight - 30) / 2),
 			BackgroundTransparency = 1,
@@ -249,7 +239,6 @@ function UILibrary:CreateWindow(config)
 	})
 	roundify(CloseBtn, 8)
 
-	-- Mobile-friendly touch feedback
 	local function addTouchFeedback(button, hoverColor, normalColor)
 		if isMobile then
 			button.MouseButton1Down:Connect(function()
@@ -270,13 +259,14 @@ function UILibrary:CreateWindow(config)
 
 	addTouchFeedback(CloseBtn, theme.Error, Color3.fromRGB(255, 255, 255))
 
+	local open = false
 	CloseBtn.MouseButton1Click:Connect(function()
 		open = false
 		Container.Visible = false
 		ModalBtn.Visible = false
 	end)
 
-	--// Dragging (touch and mouse support)
+	--// Dragging
 	local dragging, dragInput, dragStart, startPos
 
 	local function startDrag(input)
@@ -313,7 +303,7 @@ function UILibrary:CreateWindow(config)
 		end
 	end)
 
-	--// Category Sidebar
+	--// Sidebar
 	local sidebarWidth = isMobile and 100 or 130
 	local Sidebar = create("Frame", {
 		Name = "Sidebar",
@@ -324,14 +314,14 @@ function UILibrary:CreateWindow(config)
 		Parent = Container
 	})
 
-	local SidebarList = create("UIListLayout", {
+	create("UIListLayout", {
 		Padding = UDim.new(0, 4),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = Sidebar
 	})
 
 	local sidebarPadding = isMobile and 6 or 10
-	local SidebarPadding = create("UIPadding", {
+	create("UIPadding", {
 		PaddingTop = UDim.new(0, sidebarPadding),
 		PaddingLeft = UDim.new(0, sidebarPadding),
 		PaddingRight = UDim.new(0, sidebarPadding),
@@ -349,7 +339,7 @@ function UILibrary:CreateWindow(config)
 		Parent = Container
 	})
 
-	--// Toggle Button with gradient
+	--// Toggle Button
 	local toggleSize = isMobile and 50 or 55
 	local toggleOffset = isMobile and 15 : 20
 	local ToggleBtn = create("TextButton", {
@@ -363,12 +353,9 @@ function UILibrary:CreateWindow(config)
 	})
 	roundify(ToggleBtn, 12)
 	addStroke(ToggleBtn, Color3.fromRGB(180, 140, 255), 2)
-	addGradient(ToggleBtn, {
-		theme.Accent,
-		theme.AccentBlue
-	}, 45)
+	addGradient(ToggleBtn, {theme.Accent, theme.AccentBlue}, 45)
 
-	local ToggleIcon = create("TextLabel", {
+	create("TextLabel", {
 		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundTransparency = 1,
 		Text = "⚡",
@@ -378,8 +365,6 @@ function UILibrary:CreateWindow(config)
 		Parent = ToggleBtn
 	})
 
-	local open = false
-
 	local function toggleUI()
 		open = not open
 		Container.Visible = open
@@ -387,13 +372,9 @@ function UILibrary:CreateWindow(config)
 
 		if open then
 			Container.Size = UDim2.new(0, 0, 0, 0)
-			tween(Container, {
-				Size = UDim2.new(0, size.X, 0, size.Y)
-			}, 0.35, Enum.EasingStyle.Back)
+			tween(Container, {Size = UDim2.new(0, size.X, 0, size.Y)}, 0.35, Enum.EasingStyle.Back)
 		else
-			tween(Container, {
-				Size = UDim2.new(0, 0, 0, 0)
-			}, 0.25)
+			tween(Container, {Size = UDim2.new(0, 0, 0, 0)}, 0.25)
 			task.wait(0.25)
 			Container.Visible = false
 		end
@@ -401,7 +382,6 @@ function UILibrary:CreateWindow(config)
 
 	ToggleBtn.MouseButton1Click:Connect(toggleUI)
 
-	-- Keyboard toggle (only on non-mobile)
 	if not isMobile then
 		UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if not gameProcessed and input.KeyCode == keybind then
@@ -410,7 +390,6 @@ function UILibrary:CreateWindow(config)
 		end)
 	end
 
-	-- Mobile-friendly toggle button hover
 	if isMobile then
 		ToggleBtn.MouseButton1Down:Connect(function()
 			tween(ToggleBtn, {Size = UDim2.new(0, toggleSize + 5, 0, toggleSize + 5)}, 0.1)
@@ -438,7 +417,7 @@ function UILibrary:CreateWindow(config)
 		Parent = ScreenGui
 	})
 
-	local NotifLayout = create("UIListLayout", {
+	create("UIListLayout", {
 		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		VerticalAlignment = Enum.VerticalAlignment.Bottom,
@@ -458,7 +437,6 @@ function UILibrary:CreateWindow(config)
 			Button = nil
 		}
 
-		--// Category Button with gradient highlight
 		local categoryBtnHeight = isMobile and 36 or 40
 		local CategoryBtn = create("TextButton", {
 			Name = name,
@@ -470,7 +448,6 @@ function UILibrary:CreateWindow(config)
 		})
 		roundify(CategoryBtn, 8)
 
-		-- Purple/Blue gradient highlight bar
 		local HighlightBar = create("Frame", {
 			Name = "Highlight",
 			Size = UDim2.new(0, isMobile and 3 or 4, 1, -10),
@@ -481,10 +458,7 @@ function UILibrary:CreateWindow(config)
 			Parent = CategoryBtn
 		})
 		roundify(HighlightBar, 3)
-		addGradient(HighlightBar, {
-			theme.Accent,
-			theme.AccentBlue
-		}, 90)
+		addGradient(HighlightBar, {theme.Accent, theme.AccentBlue}, 90)
 
 		local iconSize = isMobile and 20 or 26
 		local iconOffset = isMobile and 8 : 14
@@ -512,7 +486,6 @@ function UILibrary:CreateWindow(config)
 			Parent = CategoryBtn
 		})
 
-		--// Category Content
 		local ScrollFrame = create("ScrollingFrame", {
 			Name = name .. "Content",
 			Size = UDim2.new(1, 0, 1, 0),
@@ -526,14 +499,14 @@ function UILibrary:CreateWindow(config)
 			Parent = ContentFrame
 		})
 
-		local UIList = create("UIListLayout", {
+		create("UIListLayout", {
 			Padding = UDim.new(0, isMobile and 8 or 10),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = ScrollFrame
 		})
 
 		local scrollPadding = isMobile and 3 : 5
-		local UIPadding = create("UIPadding", {
+		create("UIPadding", {
 			PaddingLeft = UDim.new(0, scrollPadding),
 			PaddingRight = UDim.new(0, isMobile and 8 or 10),
 			Parent = ScrollFrame
@@ -545,7 +518,6 @@ function UILibrary:CreateWindow(config)
 		categoryData.IconLabel = IconLabel
 		categoryData.CategoryLabel = CategoryLabel
 
-		--// Category Selection
 		CategoryBtn.MouseButton1Click:Connect(function()
 			for _, cat in pairs(Window.Categories) do
 				cat.ScrollFrame.Visible = false
@@ -563,7 +535,6 @@ function UILibrary:CreateWindow(config)
 			Window.CurrentCategory = categoryData
 		end)
 
-		-- Mobile-friendly category button feedback
 		if isMobile then
 			CategoryBtn.MouseButton1Down:Connect(function()
 				if Window.CurrentCategory ~= categoryData then
@@ -585,13 +556,7 @@ function UILibrary:CreateWindow(config)
 
 		table.insert(Window.Categories, categoryData)
 
-		--// Auto-select first category
 		if #Window.Categories == 1 then
-			for _, cat in pairs(Window.Categories) do
-				cat.ScrollFrame.Visible = false
-				cat.Button.BackgroundColor3 = theme.ButtonBg
-				cat.HighlightBar.Visible = false
-			end
 			ScrollFrame.Visible = true
 			CategoryBtn.BackgroundColor3 = theme.Panel
 			HighlightBar.Visible = true
@@ -615,12 +580,9 @@ function UILibrary:CreateWindow(config)
 				Parent = ScrollFrame
 			})
 			roundify(Button, 8)
-			addGradient(Button, {
-				theme.Accent,
-				theme.AccentBlue
-			}, 45)
+			addGradient(Button, {theme.Accent, theme.AccentBlue}, 45)
 
-			local ButtonLabel = create("TextLabel", {
+			create("TextLabel", {
 				Size = UDim2.new(1, -20, 1, 0),
 				Position = UDim2.new(0, 10, 0, 0),
 				BackgroundTransparency = 1,
@@ -673,7 +635,7 @@ function UILibrary:CreateWindow(config)
 			})
 			roundify(ToggleFrame, 8)
 
-			local ToggleLabel = create("TextLabel", {
+			create("TextLabel", {
 				Size = UDim2.new(1, -70, 1, 0),
 				Position = UDim2.new(0, isMobile and 10 or 14, 0, 0),
 				BackgroundTransparency = 1,
@@ -766,7 +728,7 @@ function UILibrary:CreateWindow(config)
 				Parent = DropdownFrame
 			})
 
-			local DropdownLabel = create("TextLabel", {
+			create("TextLabel", {
 				Size = UDim2.new(1, -50, 1, 0),
 				Position = UDim2.new(0, isMobile and 10 or 14, 0, 0),
 				BackgroundTransparency = 1,
@@ -798,7 +760,7 @@ function UILibrary:CreateWindow(config)
 				Parent = DropdownFrame
 			})
 
-			local OptionsList = create("UIListLayout", {
+			create("UIListLayout", {
 				Padding = UDim.new(0, 3),
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				Parent = OptionsFrame
@@ -815,7 +777,7 @@ function UILibrary:CreateWindow(config)
 				})
 				roundify(OptionButton, 6)
 
-				local OptionLabel = create("TextLabel", {
+				create("TextLabel", {
 					Size = UDim2.new(1, -35, 1, 0),
 					Position = UDim2.new(0, 10, 0, 0),
 					BackgroundTransparency = 1,
@@ -853,7 +815,6 @@ function UILibrary:CreateWindow(config)
 					OptionButton.MouseEnter:Connect(function()
 						tween(OptionButton, {BackgroundColor3 = theme.ButtonHover}, 0.2)
 					end)
-
 					OptionButton.MouseLeave:Connect(function()
 						tween(OptionButton, {BackgroundColor3 = theme.ButtonBg}, 0.2)
 					end)
@@ -926,7 +887,7 @@ function UILibrary:CreateWindow(config)
 			})
 			roundify(SliderFrame, 8)
 
-			local SliderLabel = create("TextLabel", {
+			create("TextLabel", {
 				Size = UDim2.new(1, -65, 0, 24),
 				Position = UDim2.new(0, isMobile and 10 or 14, 0, isMobile and 6 or 8),
 				BackgroundTransparency = 1,
@@ -1044,7 +1005,7 @@ function UILibrary:CreateWindow(config)
 			addGradient(NotifAccent, {theme.Accent, theme.AccentBlue}, 90)
 		end
 
-		local NotifLabel = create("TextLabel", {
+		create("TextLabel", {
 			Size = UDim2.new(1, -(isMobile and 18 or 24), 1, 0),
 			Position = UDim2.new(0, isMobile and 12 or 16, 0, 0),
 			BackgroundTransparency = 1,
@@ -1078,9 +1039,7 @@ function UILibrary:CreateWindow(config)
 		ModalBtn.Visible = true
 		Container.Size = UDim2.new(0, 0, 0, 0)
 		UserInputService.MouseIconEnabled = true
-		tween(Container, {
-			Size = UDim2.new(0, size.X, 0, size.Y)
-		}, 0.35, Enum.EasingStyle.Back)
+		tween(Container, {Size = UDim2.new(0, size.X, 0, size.Y)}, 0.35, Enum.EasingStyle.Back)
 	end
 
 	function Window:Hide()
