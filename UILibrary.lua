@@ -15,6 +15,10 @@ end
 
 local playerGui = player:WaitForChild("PlayerGui")
 
+--// Mobile Detection
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local isTablet = UserInputService.TouchEnabled and UserInputService.KeyboardEnabled
+
 --// Purple/Blue Gradient Theme (matching the image)
 local theme = {
 	Background = Color3.fromRGB(15, 15, 25),
@@ -88,10 +92,33 @@ local function tween(obj, props, duration, style, direction)
 	TweenService:Create(obj, info, props):Play()
 end
 
+--// Mobile-specific sizing helper
+local function getMobileSize()
+	local viewportSize = workspace.CurrentCamera.ViewportSize
+	local baseSize = Vector2.new(700, 500)
+	
+	if isMobile then
+		-- Mobile phones: use most of the screen
+		return Vector2.new(
+			math.min(viewportSize.X * 0.95, 450),
+			math.min(viewportSize.Y * 0.85, 600)
+		)
+	elseif isTablet then
+		-- Tablets: slightly larger
+		return Vector2.new(
+			math.min(viewportSize.X * 0.8, 600),
+			math.min(viewportSize.Y * 0.75, 550)
+		)
+	else
+		-- Desktop: original size
+		return baseSize
+	end
+end
+
 --// Main Window Creator
 function UILibrary:CreateWindow(config)
 	local title = config.Title or config.title or "mspaint v4"
-	local size = config.Size or Vector2.new(700, 500)
+	local size = config.Size or getMobileSize()
 	local keybind = config.Keybind or config.keybind or Enum.KeyCode.RightShift
 
 	--// Screen GUI
@@ -99,6 +126,7 @@ function UILibrary:CreateWindow(config)
 		Name = "ModernUI_" .. title,
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		IgnoreGuiInset = true,
 		Parent = playerGui
 	})
 
@@ -124,18 +152,29 @@ function UILibrary:CreateWindow(config)
 		Visible = false,
 		Parent = ScreenGui
 	})
-	roundify(Container, 12)
+	roundify(Container, isMobile and 16 or 12)
 	addStroke(Container, theme.Border, 1.5)
 
+	-- Mobile: Adjust container on viewport resize
+	if isMobile or isTablet then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			local newSize = getMobileSize()
+			size = newSize
+			Container.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
+			Container.Position = UDim2.new(0.5, -newSize.X/2, 0.5, -newSize.Y/2)
+		end)
+	end
+
 	--// Header with gradient
+	local headerHeight = isMobile and 50 or 60
 	local Header = create("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 60),
+		Size = UDim2.new(1, 0, 0, headerHeight),
 		BackgroundColor3 = theme.Header,
 		BorderSizePixel = 0,
 		Parent = Container
 	})
-	roundify(Header, 12)
+	roundify(Header, isMobile and 16 or 12)
 	addGradient(Header, {
 		theme.Accent,
 		theme.AccentBlue
@@ -150,16 +189,17 @@ function UILibrary:CreateWindow(config)
 	})
 
 	-- Logo with glow effect
+	local logoSize = isMobile and 32 or 40
 	local Logo = create("TextLabel", {
 		Name = "Logo",
-		Size = UDim2.new(0, 40, 0, 40),
-		Position = UDim2.new(0, 15, 0, 10),
+		Size = UDim2.new(0, logoSize, 0, logoSize),
+		Position = UDim2.new(0, 10, 0, (headerHeight - logoSize) / 2),
 		BackgroundColor3 = Color3.fromRGB(138, 100, 255),
 		BackgroundTransparency = 0.3,
 		Text = "⚡",
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		Font = Enum.Font.GothamBold,
-		TextSize = 22,
+		TextSize = isMobile and 18 or 22,
 		Parent = Header
 	})
 	roundify(Logo, 8)
@@ -168,75 +208,97 @@ function UILibrary:CreateWindow(config)
 	local TitleLabel = create("TextLabel", {
 		Name = "Title",
 		Size = UDim2.new(1, -150, 1, 0),
-		Position = UDim2.new(0, 65, 0, 0),
+		Position = UDim2.new(0, logoSize + 18, 0, 0),
 		BackgroundTransparency = 1,
 		Text = title,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		Font = Enum.Font.GothamBold,
-		TextSize = 18,
+		TextSize = isMobile and 15 or 18,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = Header
 	})
 
-	-- Search Icon
-	local SearchIcon = create("TextLabel", {
-		Size = UDim2.new(0, 30, 0, 30),
-		Position = UDim2.new(1, -85, 0, 15),
-		BackgroundTransparency = 1,
-		Text = "🔍",
-		TextColor3 = Color3.fromRGB(200, 200, 220),
-		Font = Enum.Font.Gotham,
-		TextSize = 16,
-		Parent = Header
-	})
+	-- Search Icon (hidden on small mobile screens)
+	if not isMobile or size.X > 400 then
+		local SearchIcon = create("TextLabel", {
+			Size = UDim2.new(0, 30, 0, 30),
+			Position = UDim2.new(1, -85, 0, (headerHeight - 30) / 2),
+			BackgroundTransparency = 1,
+			Text = "🔍",
+			TextColor3 = Color3.fromRGB(200, 200, 220),
+			Font = Enum.Font.Gotham,
+			TextSize = isMobile and 14 or 16,
+			Parent = Header
+		})
+	end
 
 	--// Close Button
+	local closeBtnSize = isMobile and 32 or 38
 	local CloseBtn = create("TextButton", {
 		Name = "CloseBtn",
-		Size = UDim2.new(0, 38, 0, 38),
-		Position = UDim2.new(1, -48, 0, 11),
+		Size = UDim2.new(0, closeBtnSize, 0, closeBtnSize),
+		Position = UDim2.new(1, -closeBtnSize - 8, 0, (headerHeight - closeBtnSize) / 2),
 		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 		BackgroundTransparency = 0.9,
 		Text = "×",
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		Font = Enum.Font.GothamBold,
-		TextSize = 24,
+		TextSize = isMobile and 20 or 24,
 		AutoButtonColor = false,
 		Parent = Header
 	})
 	roundify(CloseBtn, 8)
 
-	CloseBtn.MouseEnter:Connect(function()
-		tween(CloseBtn, {BackgroundTransparency = 0.7, BackgroundColor3 = theme.Error}, 0.2)
-	end)
-	CloseBtn.MouseLeave:Connect(function()
-		tween(CloseBtn, {BackgroundTransparency = 0.9, BackgroundColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
-	end)
+	-- Mobile-friendly touch feedback
+	local function addTouchFeedback(button, hoverColor, normalColor)
+		if isMobile then
+			button.MouseButton1Down:Connect(function()
+				tween(button, {BackgroundTransparency = 0.7, BackgroundColor3 = hoverColor or theme.Error}, 0.1)
+			end)
+			button.MouseButton1Up:Connect(function()
+				tween(button, {BackgroundTransparency = 0.9, BackgroundColor3 = normalColor or Color3.fromRGB(255, 255, 255)}, 0.1)
+			end)
+		else
+			button.MouseEnter:Connect(function()
+				tween(button, {BackgroundTransparency = 0.7, BackgroundColor3 = hoverColor or theme.Error}, 0.2)
+			end)
+			button.MouseLeave:Connect(function()
+				tween(button, {BackgroundTransparency = 0.9, BackgroundColor3 = normalColor or Color3.fromRGB(255, 255, 255)}, 0.2)
+			end)
+		end
+	end
+
+	addTouchFeedback(CloseBtn, theme.Error, Color3.fromRGB(255, 255, 255))
+
 	CloseBtn.MouseButton1Click:Connect(function()
 		open = false
 		Container.Visible = false
 		ModalBtn.Visible = false
 	end)
 
-	--// Dragging
+	--// Dragging (touch and mouse support)
 	local dragging, dragInput, dragStart, startPos
 
-	Header.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			dragStart = input.Position
-			startPos = Container.Position
+	local function startDrag(input)
+		dragging = true
+		dragStart = input.Position
+		startPos = Container.Position
 
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+
+	Header.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			startDrag(input)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			dragInput = input
 		end
 
@@ -252,10 +314,11 @@ function UILibrary:CreateWindow(config)
 	end)
 
 	--// Category Sidebar
+	local sidebarWidth = isMobile and 100 or 130
 	local Sidebar = create("Frame", {
 		Name = "Sidebar",
-		Size = UDim2.new(0, 130, 1, -60),
-		Position = UDim2.new(0, 0, 0, 60),
+		Size = UDim2.new(0, sidebarWidth, 1, -headerHeight),
+		Position = UDim2.new(0, 0, 0, headerHeight),
 		BackgroundColor3 = theme.Sidebar,
 		BorderSizePixel = 0,
 		Parent = Container
@@ -267,28 +330,32 @@ function UILibrary:CreateWindow(config)
 		Parent = Sidebar
 	})
 
+	local sidebarPadding = isMobile and 6 or 10
 	local SidebarPadding = create("UIPadding", {
-		PaddingTop = UDim.new(0, 10),
-		PaddingLeft = UDim.new(0, 10),
-		PaddingRight = UDim.new(0, 10),
-		PaddingBottom = UDim.new(0, 10),
+		PaddingTop = UDim.new(0, sidebarPadding),
+		PaddingLeft = UDim.new(0, sidebarPadding),
+		PaddingRight = UDim.new(0, sidebarPadding),
+		PaddingBottom = UDim.new(0, sidebarPadding),
 		Parent = Sidebar
 	})
 
 	--// Content Area
+	local contentOffset = isMobile and 8 : 13
 	local ContentFrame = create("Frame", {
 		Name = "Content",
-		Size = UDim2.new(1, -145, 1, -75),
-		Position = UDim2.new(0, 138, 0, 68),
+		Size = UDim2.new(1, -(sidebarWidth + contentOffset + 7), 1, -(headerHeight + contentOffset)),
+		Position = UDim2.new(0, sidebarWidth + contentOffset, 0, headerHeight + contentOffset),
 		BackgroundTransparency = 1,
 		Parent = Container
 	})
 
 	--// Toggle Button with gradient
+	local toggleSize = isMobile and 50 or 55
+	local toggleOffset = isMobile and 15 : 20
 	local ToggleBtn = create("TextButton", {
 		Name = "ToggleBtn",
-		Size = UDim2.new(0, 55, 0, 55),
-		Position = UDim2.new(1, -75, 1, -75),
+		Size = UDim2.new(0, toggleSize, 0, toggleSize),
+		Position = UDim2.new(1, -toggleSize - toggleOffset, 1, -toggleSize - toggleOffset),
 		BackgroundColor3 = theme.Accent,
 		Text = "",
 		AutoButtonColor = false,
@@ -307,7 +374,7 @@ function UILibrary:CreateWindow(config)
 		Text = "⚡",
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		Font = Enum.Font.GothamBold,
-		TextSize = 28,
+		TextSize = isMobile and 24 or 28,
 		Parent = ToggleBtn
 	})
 
@@ -334,28 +401,39 @@ function UILibrary:CreateWindow(config)
 
 	ToggleBtn.MouseButton1Click:Connect(toggleUI)
 
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if not gameProcessed and input.KeyCode == keybind then
-			toggleUI()
-		end
-	end)
+	-- Keyboard toggle (only on non-mobile)
+	if not isMobile then
+		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if not gameProcessed and input.KeyCode == keybind then
+				toggleUI()
+			end
+		end)
+	end
 
-	ToggleBtn.MouseEnter:Connect(function()
-		tween(ToggleBtn, {
-			Size = UDim2.new(0, 60, 0, 60)
-		}, 0.2)
-	end)
-	ToggleBtn.MouseLeave:Connect(function()
-		tween(ToggleBtn, {
-			Size = UDim2.new(0, 55, 0, 55)
-		}, 0.2)
-	end)
+	-- Mobile-friendly toggle button hover
+	if isMobile then
+		ToggleBtn.MouseButton1Down:Connect(function()
+			tween(ToggleBtn, {Size = UDim2.new(0, toggleSize + 5, 0, toggleSize + 5)}, 0.1)
+		end)
+		ToggleBtn.MouseButton1Up:Connect(function()
+			tween(ToggleBtn, {Size = UDim2.new(0, toggleSize, 0, toggleSize)}, 0.1)
+		end)
+	else
+		ToggleBtn.MouseEnter:Connect(function()
+			tween(ToggleBtn, {Size = UDim2.new(0, 60, 0, 60)}, 0.2)
+		end)
+		ToggleBtn.MouseLeave:Connect(function()
+			tween(ToggleBtn, {Size = UDim2.new(0, 55, 0, 55)}, 0.2)
+		end)
+	end
 
 	--// Notification Container
+	local notifWidth = isMobile and 280 or 320
+	local notifOffset = isMobile and 10 : 10
 	local NotifContainer = create("Frame", {
 		Name = "Notifications",
-		Size = UDim2.new(0, 320, 1, -20),
-		Position = UDim2.new(1, -330, 0, 10),
+		Size = UDim2.new(0, notifWidth, 1, -20),
+		Position = UDim2.new(1, -(notifWidth + notifOffset), 0, notifOffset),
 		BackgroundTransparency = 1,
 		Parent = ScreenGui
 	})
@@ -381,9 +459,10 @@ function UILibrary:CreateWindow(config)
 		}
 
 		--// Category Button with gradient highlight
+		local categoryBtnHeight = isMobile and 36 or 40
 		local CategoryBtn = create("TextButton", {
 			Name = name,
-			Size = UDim2.new(1, 0, 0, 40),
+			Size = UDim2.new(1, 0, 0, categoryBtnHeight),
 			BackgroundColor3 = theme.ButtonBg,
 			Text = "",
 			AutoButtonColor = false,
@@ -394,7 +473,7 @@ function UILibrary:CreateWindow(config)
 		-- Purple/Blue gradient highlight bar
 		local HighlightBar = create("Frame", {
 			Name = "Highlight",
-			Size = UDim2.new(0, 4, 1, -10),
+			Size = UDim2.new(0, isMobile and 3 or 4, 1, -10),
 			Position = UDim2.new(0, 3, 0, 5),
 			BackgroundColor3 = theme.Accent,
 			BorderSizePixel = 0,
@@ -407,26 +486,29 @@ function UILibrary:CreateWindow(config)
 			theme.AccentBlue
 		}, 90)
 
+		local iconSize = isMobile and 20 or 26
+		local iconOffset = isMobile and 8 : 14
 		local IconLabel = create("TextLabel", {
-			Size = UDim2.new(0, 26, 1, 0),
-			Position = UDim2.new(0, 14, 0, 0),
+			Size = UDim2.new(0, iconSize, 1, 0),
+			Position = UDim2.new(0, iconOffset, 0, 0),
 			BackgroundTransparency = 1,
 			Text = icon or "📁",
 			TextColor3 = theme.TextDim,
 			Font = Enum.Font.Gotham,
-			TextSize = 16,
+			TextSize = isMobile and 14 or 16,
 			Parent = CategoryBtn
 		})
 
 		local CategoryLabel = create("TextLabel", {
-			Size = UDim2.new(1, -50, 1, 0),
-			Position = UDim2.new(0, 45, 0, 0),
+			Size = UDim2.new(1, -(iconOffset + iconSize + 10), 1, 0),
+			Position = UDim2.new(0, iconOffset + iconSize + 5, 0, 0),
 			BackgroundTransparency = 1,
 			Text = name,
 			TextColor3 = theme.TextDim,
 			Font = Enum.Font.GothamSemibold,
-			TextSize = 14,
+			TextSize = isMobile and 12 or 14,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextWrapped = true,
 			Parent = CategoryBtn
 		})
 
@@ -436,7 +518,7 @@ function UILibrary:CreateWindow(config)
 			Size = UDim2.new(1, 0, 1, 0),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			ScrollBarThickness = 5,
+			ScrollBarThickness = isMobile and 4 or 5,
 			ScrollBarImageColor3 = theme.Accent,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -445,14 +527,15 @@ function UILibrary:CreateWindow(config)
 		})
 
 		local UIList = create("UIListLayout", {
-			Padding = UDim.new(0, 10),
+			Padding = UDim.new(0, isMobile and 8 or 10),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = ScrollFrame
 		})
 
+		local scrollPadding = isMobile and 3 : 5
 		local UIPadding = create("UIPadding", {
-			PaddingLeft = UDim.new(0, 5),
-			PaddingRight = UDim.new(0, 10),
+			PaddingLeft = UDim.new(0, scrollPadding),
+			PaddingRight = UDim.new(0, isMobile and 8 or 10),
 			Parent = ScrollFrame
 		})
 
@@ -480,17 +563,25 @@ function UILibrary:CreateWindow(config)
 			Window.CurrentCategory = categoryData
 		end)
 
-		CategoryBtn.MouseEnter:Connect(function()
-			if Window.CurrentCategory ~= categoryData then
-				tween(CategoryBtn, {BackgroundColor3 = theme.Panel}, 0.2)
-			end
-		end)
-
-		CategoryBtn.MouseLeave:Connect(function()
-			if Window.CurrentCategory ~= categoryData then
-				tween(CategoryBtn, {BackgroundColor3 = theme.ButtonBg}, 0.2)
-			end
-		end)
+		-- Mobile-friendly category button feedback
+		if isMobile then
+			CategoryBtn.MouseButton1Down:Connect(function()
+				if Window.CurrentCategory ~= categoryData then
+					CategoryBtn.BackgroundColor3 = theme.Panel
+				end
+			end)
+		else
+			CategoryBtn.MouseEnter:Connect(function()
+				if Window.CurrentCategory ~= categoryData then
+					tween(CategoryBtn, {BackgroundColor3 = theme.Panel}, 0.2)
+				end
+			end)
+			CategoryBtn.MouseLeave:Connect(function()
+				if Window.CurrentCategory ~= categoryData then
+					tween(CategoryBtn, {BackgroundColor3 = theme.ButtonBg}, 0.2)
+				end
+			end)
+		end
 
 		table.insert(Window.Categories, categoryData)
 
@@ -514,9 +605,10 @@ function UILibrary:CreateWindow(config)
 		Category.ScrollFrame = ScrollFrame
 
 		function Category:Button(name, callback)
+			local buttonHeight = isMobile and 38 or 42
 			local Button = create("TextButton", {
 				Name = "Button",
-				Size = UDim2.new(1, -10, 0, 42),
+				Size = UDim2.new(1, -10, 0, buttonHeight),
 				BackgroundColor3 = theme.Accent,
 				Text = "",
 				AutoButtonColor = false,
@@ -535,22 +627,31 @@ function UILibrary:CreateWindow(config)
 				Text = name,
 				TextColor3 = Color3.fromRGB(255, 255, 255),
 				Font = Enum.Font.GothamBold,
-				TextSize = 15,
+				TextSize = isMobile and 13 or 15,
 				TextXAlignment = Enum.TextXAlignment.Center,
 				Parent = Button
 			})
 
-			Button.MouseEnter:Connect(function()
-				tween(Button, {BackgroundColor3 = theme.AccentHover}, 0.2)
-			end)
-			Button.MouseLeave:Connect(function()
-				tween(Button, {BackgroundColor3 = theme.Accent}, 0.2)
-			end)
+			if isMobile then
+				Button.MouseButton1Down:Connect(function()
+					Button.BackgroundColor3 = theme.AccentHover
+				end)
+				Button.MouseButton1Up:Connect(function()
+					Button.BackgroundColor3 = theme.Accent
+				end)
+			else
+				Button.MouseEnter:Connect(function()
+					tween(Button, {BackgroundColor3 = theme.AccentHover}, 0.2)
+				end)
+				Button.MouseLeave:Connect(function()
+					tween(Button, {BackgroundColor3 = theme.Accent}, 0.2)
+				end)
+			end
 
 			Button.MouseButton1Click:Connect(function()
-				tween(Button, {Size = UDim2.new(1, -10, 0, 38)}, 0.1)
+				tween(Button, {Size = UDim2.new(1, -10, 0, buttonHeight - 4)}, 0.1)
 				task.wait(0.1)
-				tween(Button, {Size = UDim2.new(1, -10, 0, 42)}, 0.1)
+				tween(Button, {Size = UDim2.new(1, -10, 0, buttonHeight)}, 0.1)
 
 				if callback then
 					task.spawn(callback)
@@ -562,10 +663,11 @@ function UILibrary:CreateWindow(config)
 
 		function Category:Toggle(name, default, callback)
 			local enabled = default or false
+			local toggleHeight = isMobile and 38 or 42
 
 			local ToggleFrame = create("Frame", {
 				Name = "Toggle",
-				Size = UDim2.new(1, -10, 0, 42),
+				Size = UDim2.new(1, -10, 0, toggleHeight),
 				BackgroundColor3 = theme.Panel,
 				Parent = ScrollFrame
 			})
@@ -573,38 +675,43 @@ function UILibrary:CreateWindow(config)
 
 			local ToggleLabel = create("TextLabel", {
 				Size = UDim2.new(1, -70, 1, 0),
-				Position = UDim2.new(0, 14, 0, 0),
+				Position = UDim2.new(0, isMobile and 10 or 14, 0, 0),
 				BackgroundTransparency = 1,
 				Text = name,
 				TextColor3 = theme.Text,
 				Font = Enum.Font.GothamSemibold,
-				TextSize = 14,
+				TextSize = isMobile and 12 or 14,
 				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = true,
 				Parent = ToggleFrame
 			})
 
+			local switchWidth = isMobile and 40 or 44
+			local switchHeight = isMobile and 20 or 22
 			local ToggleButton = create("TextButton", {
 				Name = "Switch",
-				Size = UDim2.new(0, 44, 0, 22),
-				Position = UDim2.new(1, -52, 0.5, -11),
+				Size = UDim2.new(0, switchWidth, 0, switchHeight),
+				Position = UDim2.new(1, -(switchWidth + 8), 0.5, -switchHeight/2),
 				BackgroundColor3 = enabled and theme.Accent or theme.ButtonBg,
 				Text = "",
 				AutoButtonColor = false,
 				Parent = ToggleFrame
 			})
-			roundify(ToggleButton, 11)
+			roundify(ToggleButton, switchHeight/2)
 			if enabled then
 				addGradient(ToggleButton, {theme.Accent, theme.AccentBlue}, 45)
 			end
 
+			local circleSize = isMobile and 14 or 16
+			local circleOffset = isMobile and 2.5 or 3
 			local ToggleCircle = create("Frame", {
 				Name = "Circle",
-				Size = UDim2.new(0, 16, 0, 16),
-				Position = enabled and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
+				Size = UDim2.new(0, circleSize, 0, circleSize),
+				Position = enabled and UDim2.new(1, -(circleSize + circleOffset), 0.5, -circleSize/2) or UDim2.new(0, circleOffset, 0.5, -circleSize/2),
 				BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 				Parent = ToggleButton
 			})
-			roundify(ToggleCircle, 8)
+			roundify(ToggleCircle, circleSize/2)
 
 			ToggleButton.MouseButton1Click:Connect(function()
 				enabled = not enabled
@@ -622,7 +729,7 @@ function UILibrary:CreateWindow(config)
 				end
 
 				tween(ToggleCircle, {
-					Position = enabled and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+					Position = enabled and UDim2.new(1, -(circleSize + circleOffset), 0.5, -circleSize/2) or UDim2.new(0, circleOffset, 0.5, -circleSize/2)
 				}, 0.2, Enum.EasingStyle.Quad)
 
 				if callback then
@@ -637,8 +744,9 @@ function UILibrary:CreateWindow(config)
 			local selectedOptions = {}
 			local isOpen = false
 
-			local closedHeight = 42
-			local openHeight = closedHeight + (#options * 32) + 8
+			local closedHeight = isMobile and 38 or 42
+			local optionHeight = isMobile and 28 or 32
+			local openHeight = closedHeight + (#options * (optionHeight + 3)) + 8
 
 			local DropdownFrame = create("Frame", {
 				Name = "Dropdown",
@@ -660,13 +768,14 @@ function UILibrary:CreateWindow(config)
 
 			local DropdownLabel = create("TextLabel", {
 				Size = UDim2.new(1, -50, 1, 0),
-				Position = UDim2.new(0, 14, 0, 0),
+				Position = UDim2.new(0, isMobile and 10 or 14, 0, 0),
 				BackgroundTransparency = 1,
 				Text = name,
 				TextColor3 = theme.Text,
 				Font = Enum.Font.GothamSemibold,
-				TextSize = 14,
+				TextSize = isMobile and 12 or 14,
 				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = true,
 				Parent = DropdownHeader
 			})
 
@@ -677,7 +786,7 @@ function UILibrary:CreateWindow(config)
 				Text = "▼",
 				TextColor3 = theme.Accent,
 				Font = Enum.Font.GothamBold,
-				TextSize = 11,
+				TextSize = isMobile and 10 or 11,
 				Parent = DropdownHeader
 			})
 
@@ -698,7 +807,7 @@ function UILibrary:CreateWindow(config)
 			for _, optionName in ipairs(options) do
 				local OptionButton = create("TextButton", {
 					Name = optionName,
-					Size = UDim2.new(1, 0, 0, 30),
+					Size = UDim2.new(1, 0, 0, optionHeight),
 					BackgroundColor3 = theme.ButtonBg,
 					Text = "",
 					AutoButtonColor = false,
@@ -713,31 +822,42 @@ function UILibrary:CreateWindow(config)
 					Text = optionName,
 					TextColor3 = theme.Text,
 					Font = Enum.Font.Gotham,
-					TextSize = 13,
+					TextSize = isMobile and 11 or 13,
 					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
 					Parent = OptionButton
 				})
 
+				local checkSize = isMobile and 16 or 18
 				local Checkmark = create("TextLabel", {
-					Size = UDim2.new(0, 18, 0, 18),
-					Position = UDim2.new(1, -24, 0.5, -9),
+					Size = UDim2.new(0, checkSize, 0, checkSize),
+					Position = UDim2.new(1, -(checkSize + 6), 0.5, -checkSize/2),
 					BackgroundColor3 = theme.ButtonBg,
 					Text = "",
 					TextColor3 = Color3.fromRGB(255, 255, 255),
 					Font = Enum.Font.GothamBold,
-					TextSize = 13,
+					TextSize = isMobile and 11 or 13,
 					Parent = OptionButton
 				})
 				roundify(Checkmark, 4)
 				addStroke(Checkmark, theme.Border, 1)
 
-				OptionButton.MouseEnter:Connect(function()
-					tween(OptionButton, {BackgroundColor3 = theme.ButtonHover}, 0.2)
-				end)
+				if isMobile then
+					OptionButton.MouseButton1Down:Connect(function()
+						OptionButton.BackgroundColor3 = theme.ButtonHover
+					end)
+					OptionButton.MouseButton1Up:Connect(function()
+						OptionButton.BackgroundColor3 = theme.ButtonBg
+					end)
+				else
+					OptionButton.MouseEnter:Connect(function()
+						tween(OptionButton, {BackgroundColor3 = theme.ButtonHover}, 0.2)
+					end)
 
-				OptionButton.MouseLeave:Connect(function()
-					tween(OptionButton, {BackgroundColor3 = theme.ButtonBg}, 0.2)
-				end)
+					OptionButton.MouseLeave:Connect(function()
+						tween(OptionButton, {BackgroundColor3 = theme.ButtonBg}, 0.2)
+					end)
+				end
 
 				OptionButton.MouseButton1Click:Connect(function()
 					if selectedOptions[optionName] then
@@ -780,12 +900,12 @@ function UILibrary:CreateWindow(config)
 		function Category:Label(text)
 			local Label = create("TextLabel", {
 				Name = "Label",
-				Size = UDim2.new(1, -10, 0, 32),
+				Size = UDim2.new(1, -10, 0, isMobile and 28 or 32),
 				BackgroundTransparency = 1,
 				Text = text,
 				TextColor3 = theme.TextDim,
 				Font = Enum.Font.Gotham,
-				TextSize = 13,
+				TextSize = isMobile and 11 or 13,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextWrapped = true,
 				Parent = ScrollFrame
@@ -797,9 +917,10 @@ function UILibrary:CreateWindow(config)
 		function Category:Slider(name, min, max, default, callback)
 			local value = default or min
 
+			local sliderHeight = isMobile and 54 or 58
 			local SliderFrame = create("Frame", {
 				Name = "Slider",
-				Size = UDim2.new(1, -10, 0, 58),
+				Size = UDim2.new(1, -10, 0, sliderHeight),
 				BackgroundColor3 = theme.Panel,
 				Parent = ScrollFrame
 			})
@@ -807,36 +928,38 @@ function UILibrary:CreateWindow(config)
 
 			local SliderLabel = create("TextLabel", {
 				Size = UDim2.new(1, -65, 0, 24),
-				Position = UDim2.new(0, 14, 0, 8),
+				Position = UDim2.new(0, isMobile and 10 or 14, 0, isMobile and 6 or 8),
 				BackgroundTransparency = 1,
 				Text = name,
 				TextColor3 = theme.Text,
 				Font = Enum.Font.GothamSemibold,
-				TextSize = 14,
+				TextSize = isMobile and 12 or 14,
 				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = true,
 				Parent = SliderFrame
 			})
 
 			local SliderValue = create("TextLabel", {
 				Size = UDim2.new(0, 55, 0, 24),
-				Position = UDim2.new(1, -63, 0, 8),
+				Position = UDim2.new(1, -63, 0, isMobile and 6 or 8),
 				BackgroundTransparency = 1,
 				Text = tostring(value),
 				TextColor3 = theme.Accent,
 				Font = Enum.Font.GothamBold,
-				TextSize = 14,
+				TextSize = isMobile and 12 or 14,
 				TextXAlignment = Enum.TextXAlignment.Right,
 				Parent = SliderFrame
 			})
 
+			local barHeight = isMobile and 5 or 6
 			local SliderBar = create("Frame", {
-				Size = UDim2.new(1, -28, 0, 6),
-				Position = UDim2.new(0, 14, 1, -16),
+				Size = UDim2.new(1, -(isMobile and 20 or 28), 0, barHeight),
+				Position = UDim2.new(0, isMobile and 10 or 14, 1, -(isMobile and 14 or 16)),
 				BackgroundColor3 = theme.ButtonBg,
 				BorderSizePixel = 0,
 				Parent = SliderFrame
 			})
-			roundify(SliderBar, 3)
+			roundify(SliderBar, barHeight/2)
 
 			local SliderFill = create("Frame", {
 				Size = UDim2.new((value - min) / (max - min), 0, 1, 0),
@@ -844,34 +967,39 @@ function UILibrary:CreateWindow(config)
 				BorderSizePixel = 0,
 				Parent = SliderBar
 			})
-			roundify(SliderFill, 3)
+			roundify(SliderFill, barHeight/2)
 			addGradient(SliderFill, {theme.Accent, theme.AccentBlue}, 45)
 
 			local dragging = false
 
+			local function updateSlider(input)
+				local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+				value = math.floor(min + (max - min) * pos)
+
+				SliderValue.Text = tostring(value)
+				SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+
+				if callback then
+					task.spawn(callback, value)
+				end
+			end
+
 			SliderBar.InputBegan:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
+					updateSlider(input)
 				end
 			end)
 
 			UserInputService.InputEnded:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = false
 				end
 			end)
 
 			UserInputService.InputChanged:Connect(function(input)
-				if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-					local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-					value = math.floor(min + (max - min) * pos)
-
-					SliderValue.Text = tostring(value)
-					SliderFill.Size = UDim2.new(pos, 0, 1, 0)
-
-					if callback then
-						task.spawn(callback, value)
-					end
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					updateSlider(input)
 				end
 			end)
 
@@ -893,6 +1021,7 @@ function UILibrary:CreateWindow(config)
 			Error = theme.Error
 		}
 
+		local notifHeight = isMobile and 55 or 65
 		local Notif = create("Frame", {
 			Name = "Notification",
 			Size = UDim2.new(1, 0, 0, 0),
@@ -905,7 +1034,7 @@ function UILibrary:CreateWindow(config)
 		addStroke(Notif, theme.Border, 1.5)
 
 		local NotifAccent = create("Frame", {
-			Size = UDim2.new(0, 5, 1, 0),
+			Size = UDim2.new(0, isMobile and 4 or 5, 1, 0),
 			BackgroundColor3 = colors[notifType] or colors.Info,
 			BorderSizePixel = 0,
 			Parent = Notif
@@ -916,19 +1045,19 @@ function UILibrary:CreateWindow(config)
 		end
 
 		local NotifLabel = create("TextLabel", {
-			Size = UDim2.new(1, -24, 1, 0),
-			Position = UDim2.new(0, 16, 0, 0),
+			Size = UDim2.new(1, -(isMobile and 18 or 24), 1, 0),
+			Position = UDim2.new(0, isMobile and 12 or 16, 0, 0),
 			BackgroundTransparency = 1,
 			Text = text,
 			TextColor3 = theme.Text,
 			Font = Enum.Font.Gotham,
-			TextSize = 14,
+			TextSize = isMobile and 12 or 14,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextWrapped = true,
 			Parent = Notif
 		})
 
-		tween(Notif, {Size = UDim2.new(1, 0, 0, 65)}, 0.35, Enum.EasingStyle.Back)
+		tween(Notif, {Size = UDim2.new(1, 0, 0, notifHeight)}, 0.35, Enum.EasingStyle.Back)
 
 		local Sound = Instance.new("Sound")
 		Sound.Parent = game.SoundService
