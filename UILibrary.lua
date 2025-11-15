@@ -67,8 +67,12 @@ local function addStroke(obj, color, thickness)
 end
 
 local function addGradient(obj, colors, rotation)
+	local keypoints = {}
+	for i, color in ipairs(colors) do
+		table.insert(keypoints, ColorSequenceKeypoint.new((i - 1) / (#colors - 1), color))
+	end
 	local gradient = create("UIGradient", {
-		Color = ColorSequence.new(colors),
+		Color = ColorSequence.new(keypoints),
 		Rotation = rotation or 0,
 		Parent = obj
 	})
