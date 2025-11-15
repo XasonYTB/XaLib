@@ -6,14 +6,29 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
--- Wait for LocalPlayer safely
+-- Wait for LocalPlayer safely with retry
 local player = Players.LocalPlayer
-if not player then
-	Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+local maxRetries = 10
+local retryCount = 0
+
+while not player and retryCount < maxRetries do
 	player = Players.LocalPlayer
+	if not player then
+		retryCount = retryCount + 1
+		task.wait(0.1)
+	end
 end
 
-local playerGui = player:WaitForChild("PlayerGui")
+if not player then
+	warn("UILibrary: Failed to get LocalPlayer after retries")
+	return UILibrary
+end
+
+local playerGui = player:WaitForChild("PlayerGui", 10)
+if not playerGui then
+	warn("UILibrary: Failed to get PlayerGui")
+	return UILibrary
+end
 
 --// Mobile Detection
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -71,6 +86,13 @@ local function addStroke(obj, color, thickness)
 end
 
 local function addGradient(obj, colors, rotation)
+	-- Remove existing gradients first
+	for _, child in ipairs(obj:GetChildren()) do
+		if child:IsA("UIGradient") then
+			child:Destroy()
+		end
+	end
+	
 	local keypoints = {}
 	for i, color in ipairs(colors) do
 		table.insert(keypoints, ColorSequenceKeypoint.new((i - 1) / (#colors - 1), color))
@@ -88,12 +110,19 @@ local function tween(obj, props, duration, style, direction)
 		style or Enum.EasingStyle.Quad,
 		direction or Enum.EasingDirection.Out
 	)
-	TweenService:Create(obj, info, props):Play()
+	local tw = TweenService:Create(obj, info, props)
+	tw:Play()
+	return tw
 end
 
 --// Mobile-specific sizing helper
 local function getMobileSize()
-	local viewportSize = workspace.CurrentCamera.ViewportSize
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return Vector2.new(700, 500)
+	end
+	
+	local viewportSize = camera.ViewportSize
 	local baseSize = Vector2.new(700, 500)
 	
 	if isMobile then
@@ -330,7 +359,7 @@ function UILibrary:CreateWindow(config)
 	})
 
 	--// Content Area
-	local contentOffset = isMobile and 8 : 13
+	local contentOffset = isMobile and 8 or 13
 	local ContentFrame = create("Frame", {
 		Name = "Content",
 		Size = UDim2.new(1, -(sidebarWidth + contentOffset + 7), 1, -(headerHeight + contentOffset)),
@@ -341,7 +370,7 @@ function UILibrary:CreateWindow(config)
 
 	--// Toggle Button
 	local toggleSize = isMobile and 50 or 55
-	local toggleOffset = isMobile and 15 : 20
+	local toggleOffset = isMobile and 15 or 20
 	local ToggleBtn = create("TextButton", {
 		Name = "ToggleBtn",
 		Size = UDim2.new(0, toggleSize, 0, toggleSize),
@@ -408,7 +437,7 @@ function UILibrary:CreateWindow(config)
 
 	--// Notification Container
 	local notifWidth = isMobile and 280 or 320
-	local notifOffset = isMobile and 10 : 10
+	local notifOffset = isMobile and 10 or 10
 	local NotifContainer = create("Frame", {
 		Name = "Notifications",
 		Size = UDim2.new(0, notifWidth, 1, -20),
@@ -461,7 +490,7 @@ function UILibrary:CreateWindow(config)
 		addGradient(HighlightBar, {theme.Accent, theme.AccentBlue}, 90)
 
 		local iconSize = isMobile and 20 or 26
-		local iconOffset = isMobile and 8 : 14
+		local iconOffset = isMobile and 8 or 14
 		local IconLabel = create("TextLabel", {
 			Size = UDim2.new(0, iconSize, 1, 0),
 			Position = UDim2.new(0, iconOffset, 0, 0),
@@ -505,7 +534,7 @@ function UILibrary:CreateWindow(config)
 			Parent = ScrollFrame
 		})
 
-		local scrollPadding = isMobile and 3 : 5
+		local scrollPadding = isMobile and 3 or 5
 		create("UIPadding", {
 			PaddingLeft = UDim.new(0, scrollPadding),
 			PaddingRight = UDim.new(0, isMobile and 8 or 10),
@@ -616,7 +645,9 @@ function UILibrary:CreateWindow(config)
 				tween(Button, {Size = UDim2.new(1, -10, 0, buttonHeight)}, 0.1)
 
 				if callback then
-					task.spawn(callback)
+					pcall(function()
+						callback()
+					end)
 				end
 			end)
 
@@ -695,7 +726,9 @@ function UILibrary:CreateWindow(config)
 				}, 0.2, Enum.EasingStyle.Quad)
 
 				if callback then
-					task.spawn(callback, enabled)
+					pcall(function()
+						callback(enabled)
+					end)
 				end
 			end)
 
@@ -838,7 +871,9 @@ function UILibrary:CreateWindow(config)
 					end
 
 					if callback then
-						task.spawn(callback, selectedOptions)
+						pcall(function()
+							callback(selectedOptions)
+						end)
 					end
 				end)
 			end
@@ -941,7 +976,9 @@ function UILibrary:CreateWindow(config)
 				SliderFill.Size = UDim2.new(pos, 0, 1, 0)
 
 				if callback then
-					task.spawn(callback, value)
+					pcall(function()
+						callback(value)
+					end)
 				end
 			end
 
@@ -1020,11 +1057,13 @@ function UILibrary:CreateWindow(config)
 
 		tween(Notif, {Size = UDim2.new(1, 0, 0, notifHeight)}, 0.35, Enum.EasingStyle.Back)
 
-		local Sound = Instance.new("Sound")
-		Sound.Parent = game.SoundService
-		Sound.SoundId = "rbxassetid://4590662766"
-		Sound.PlayOnRemove = true
-		Sound:Destroy()
+		pcall(function()
+			local Sound = Instance.new("Sound")
+			Sound.Parent = game:GetService("SoundService")
+			Sound.SoundId = "rbxassetid://4590662766"
+			Sound.PlayOnRemove = true
+			Sound:Destroy()
+		end)
 
 		task.delay(duration, function()
 			tween(Notif, {Size = UDim2.new(1, 0, 0, 0)}, 0.25)
