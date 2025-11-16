@@ -318,7 +318,7 @@ function UILibrary:CreateWindow(config)
 	local SearchBox = create("TextBox", {
 		Name = "SearchBox",
 		Size = UDim2.new(0, searchBoxWidth, 0, isMobile and 28 or 32),
-		Position = UDim2.new(1, -(searchBoxWidth + (isMobile and 55 : 75)), 0.5, -(isMobile and 14 or 16)),
+		Position = UDim2.new(1, -(searchBoxWidth + (isMobile and 55 or 75)), 0.5, -(isMobile and 14 or 16)),
 		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 		BackgroundTransparency = 0.9,
 		BorderSizePixel = 0,
