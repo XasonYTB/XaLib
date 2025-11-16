@@ -52,6 +52,7 @@ local theme = {
 	Success = Color3.fromRGB(100, 220, 150),
 	Warning = Color3.fromRGB(255, 200, 80),
 	Error = Color3.fromRGB(255, 100, 120),
+	Tooltip = Color3.fromRGB(30, 25, 50),
 	Font = Enum.Font.Gotham
 }
 
@@ -155,6 +156,80 @@ function UILibrary:CreateWindow(config)
 		Parent = playerGui
 	})
 
+	--// Tooltip Container (Top Level)
+	local TooltipFrame = create("Frame", {
+		Name = "Tooltip",
+		Size = UDim2.new(0, 200, 0, 0),
+		Position = UDim2.new(0, 0, 0, 0),
+		BackgroundColor3 = theme.Tooltip,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 10000,
+		Parent = ScreenGui
+	})
+	roundify(TooltipFrame, 6)
+	addStroke(TooltipFrame, theme.Accent, 1.5)
+
+	local TooltipText = create("TextLabel", {
+		Size = UDim2.new(1, -16, 1, -8),
+		Position = UDim2.new(0, 8, 0, 4),
+		BackgroundTransparency = 1,
+		Text = "",
+		TextColor3 = theme.Text,
+		Font = Enum.Font.Gotham,
+		TextSize = isMobile and 11 or 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true,
+		Parent = TooltipFrame
+	})
+
+	local function showTooltip(text, targetObj)
+		if not text or text == "" then return end
+		
+		TooltipText.Text = text
+		local textSize = game:GetService("TextService"):GetTextSize(
+			text,
+			TooltipText.TextSize,
+			TooltipText.Font,
+			Vector2.new(250, math.huge)
+		)
+		
+		local tooltipWidth = math.min(math.max(textSize.X + 16, 120), 280)
+		local tooltipHeight = textSize.Y + 12
+		
+		TooltipFrame.Size = UDim2.new(0, tooltipWidth, 0, tooltipHeight)
+		TooltipFrame.Visible = true
+		
+		local function updatePosition()
+			if not targetObj or not targetObj.Parent then
+				TooltipFrame.Visible = false
+				return
+			end
+			
+			local mousePos = UserInputService:GetMouseLocation()
+			local offsetX = 12
+			local offsetY = 12
+			
+			TooltipFrame.Position = UDim2.new(0, mousePos.X + offsetX, 0, mousePos.Y + offsetY)
+		end
+		
+		updatePosition()
+		
+		local connection
+		connection = RunService.RenderStepped:Connect(function()
+			if TooltipFrame.Visible then
+				updatePosition()
+			else
+				connection:Disconnect()
+			end
+		end)
+	end
+
+	local function hideTooltip()
+		TooltipFrame.Visible = false
+	end
+
 	--// Invisible Modal Button
 	local ModalBtn = create("TextButton", {
 		Name = "ModalButton",
@@ -238,18 +313,31 @@ function UILibrary:CreateWindow(config)
 		Parent = Header
 	})
 
-	if not isMobile or size.X > 400 then
-		create("TextLabel", {
-			Size = UDim2.new(0, 30, 0, 30),
-			Position = UDim2.new(1, -85, 0, (headerHeight - 30) / 2),
-			BackgroundTransparency = 1,
-			Text = "🔍",
-			TextColor3 = Color3.fromRGB(200, 200, 220),
-			Font = Enum.Font.Gotham,
-			TextSize = isMobile and 14 or 16,
-			Parent = Header
-		})
-	end
+	--// Search Box
+	local searchBoxWidth = isMobile and 120 or 160
+	local SearchBox = create("TextBox", {
+		Name = "SearchBox",
+		Size = UDim2.new(0, searchBoxWidth, 0, isMobile and 28 or 32),
+		Position = UDim2.new(1, -(searchBoxWidth + (isMobile and 55 : 75)), 0.5, -(isMobile and 14 or 16)),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BackgroundTransparency = 0.9,
+		BorderSizePixel = 0,
+		PlaceholderText = "Search...",
+		PlaceholderColor3 = Color3.fromRGB(180, 180, 200),
+		Text = "",
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Font = Enum.Font.Gotham,
+		TextSize = isMobile and 11 or 13,
+		ClearTextOnFocus = false,
+		Parent = Header
+	})
+	roundify(SearchBox, 6)
+
+	create("UIPadding", {
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
+		Parent = SearchBox
+	})
 
 	--// Close Button
 	local closeBtnSize = isMobile and 32 or 38
@@ -457,13 +545,32 @@ function UILibrary:CreateWindow(config)
 	local Window = {}
 	Window.Categories = {}
 	Window.CurrentCategory = nil
+	Window.SearchableElements = {}
+
+	--// Search System
+	local function filterElements(query)
+		query = query:lower()
+		
+		for _, element in pairs(Window.SearchableElements) do
+			if element.Object and element.Object.Parent then
+				local matches = query == "" or element.Name:lower():find(query, 1, true)
+				element.Object.Visible = matches
+			end
+		end
+	end
+
+	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		filterElements(SearchBox.Text)
+	end)
 
 	function Window:CreateCategory(name, icon)
 		local categoryData = {
 			Name = name,
 			Icon = icon or "📁",
 			ScrollFrame = nil,
-			Button = nil
+			Button = nil,
+			Tabs = {},
+			CurrentTab = nil
 		}
 
 		local categoryBtnHeight = isMobile and 36 or 40
@@ -515,6 +622,51 @@ function UILibrary:CreateWindow(config)
 			Parent = CategoryBtn
 		})
 
+		local MainCategoryFrame = create("Frame", {
+			Name = name .. "MainFrame",
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Visible = false,
+			Parent = ContentFrame
+		})
+
+		-- Tab Header (if tabs exist)
+		local TabHeader = create("Frame", {
+			Name = "TabHeader",
+			Size = UDim2.new(1, 0, 0, isMobile and 35 or 40),
+			BackgroundColor3 = theme.Sidebar,
+			BorderSizePixel = 0,
+			Visible = false,
+			Parent = MainCategoryFrame
+		})
+		roundify(TabHeader, 8)
+
+		create("UIListLayout", {
+			Padding = UDim.new(0, 4),
+			FillDirection = Enum.FillDirection.Horizontal,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = TabHeader
+		})
+
+		create("UIPadding", {
+			PaddingLeft = UDim.new(0, 6),
+			PaddingRight = UDim.new(0, 6),
+			PaddingTop = UDim.new(0, 4),
+			PaddingBottom = UDim.new(0, 4),
+			Parent = TabHeader
+		})
+
+		-- Tab Content Container
+		local TabContentContainer = create("Frame", {
+			Name = "TabContent",
+			Size = UDim2.new(1, 0, 1, -(isMobile and 40 or 45)),
+			Position = UDim2.new(0, 0, 0, isMobile and 40 or 45),
+			BackgroundTransparency = 1,
+			Visible = false,
+			Parent = MainCategoryFrame
+		})
+
+		-- Default ScrollFrame (no tabs)
 		local ScrollFrame = create("ScrollingFrame", {
 			Name = name .. "Content",
 			Size = UDim2.new(1, 0, 1, 0),
@@ -524,8 +676,8 @@ function UILibrary:CreateWindow(config)
 			ScrollBarImageColor3 = theme.Accent,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			Visible = false,
-			Parent = ContentFrame
+			Visible = true,
+			Parent = MainCategoryFrame
 		})
 
 		create("UIListLayout", {
@@ -542,21 +694,24 @@ function UILibrary:CreateWindow(config)
 		})
 
 		categoryData.ScrollFrame = ScrollFrame
+		categoryData.MainFrame = MainCategoryFrame
 		categoryData.Button = CategoryBtn
 		categoryData.HighlightBar = HighlightBar
 		categoryData.IconLabel = IconLabel
 		categoryData.CategoryLabel = CategoryLabel
+		categoryData.TabHeader = TabHeader
+		categoryData.TabContentContainer = TabContentContainer
 
 		CategoryBtn.MouseButton1Click:Connect(function()
 			for _, cat in pairs(Window.Categories) do
-				cat.ScrollFrame.Visible = false
+				cat.MainFrame.Visible = false
 				cat.Button.BackgroundColor3 = theme.ButtonBg
 				cat.HighlightBar.Visible = false
 				cat.IconLabel.TextColor3 = theme.TextDim
 				cat.CategoryLabel.TextColor3 = theme.TextDim
 			end
 
-			ScrollFrame.Visible = true
+			MainCategoryFrame.Visible = true
 			CategoryBtn.BackgroundColor3 = theme.Panel
 			HighlightBar.Visible = true
 			IconLabel.TextColor3 = theme.Accent
@@ -586,7 +741,7 @@ function UILibrary:CreateWindow(config)
 		table.insert(Window.Categories, categoryData)
 
 		if #Window.Categories == 1 then
-			ScrollFrame.Visible = true
+			MainCategoryFrame.Visible = true
 			CategoryBtn.BackgroundColor3 = theme.Panel
 			HighlightBar.Visible = true
 			IconLabel.TextColor3 = theme.Accent
@@ -597,8 +752,626 @@ function UILibrary:CreateWindow(config)
 		--// Category API
 		local Category = {}
 		Category.ScrollFrame = ScrollFrame
+		Category.Tabs = categoryData.Tabs
+		Category.TabHeader = TabHeader
+		Category.TabContentContainer = TabContentContainer
 
-		function Category:Button(name, callback)
+		function Category:CreateTab(tabName, icon)
+			-- Show tab header when first tab is created
+			if #categoryData.Tabs == 0 then
+				TabHeader.Visible = true
+				TabContentContainer.Visible = true
+				ScrollFrame.Visible = false
+			end
+
+			local tabData = {
+				Name = tabName,
+				Icon = icon or "📄",
+				ScrollFrame = nil,
+				Button = nil
+			}
+
+			local tabBtnHeight = isMobile and 27 or 32
+			local TabButton = create("TextButton", {
+				Name = tabName,
+				Size = UDim2.new(0, isMobile and 70 or 90, 1, 0),
+				BackgroundColor3 = theme.ButtonBg,
+				Text = "",
+				AutoButtonColor = false,
+				Parent = TabHeader
+			})
+			roundify(TabButton, 6)
+
+			create("TextLabel", {
+				Size = UDim2.new(1, -8, 1, 0),
+				Position = UDim2.new(0, 4, 0, 0),
+				BackgroundTransparency = 1,
+				Text = (icon or "📄") .. " " .. tabName,
+				TextColor3 = theme.TextDim,
+				Font = Enum.Font.GothamSemibold,
+				TextSize = isMobile and 10 or 12,
+				TextWrapped = true,
+				Parent = TabButton
+			})
+
+			local TabScrollFrame = create("ScrollingFrame", {
+				Name = tabName .. "TabContent",
+				Size = UDim2.new(1, 0, 1, 0),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				ScrollBarThickness = isMobile and 4 or 5,
+				ScrollBarImageColor3 = theme.Accent,
+				CanvasSize = UDim2.new(0, 0, 0, 0),
+				AutomaticCanvasSize = Enum.AutomaticSize.Y,
+				Visible = false,
+				Parent = TabContentContainer
+			})
+
+			create("UIListLayout", {
+				Padding = UDim.new(0, isMobile and 8 or 10),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				Parent = TabScrollFrame
+			})
+
+			create("UIPadding", {
+				PaddingLeft = UDim.new(0, scrollPadding),
+				PaddingRight = UDim.new(0, isMobile and 8 or 10),
+				Parent = TabScrollFrame
+			})
+
+			tabData.ScrollFrame = TabScrollFrame
+			tabData.Button = TabButton
+			tabData.Label = TabButton:FindFirstChildOfClass("TextLabel")
+
+			TabButton.MouseButton1Click:Connect(function()
+				for _, tab in pairs(categoryData.Tabs) do
+					tab.ScrollFrame.Visible = false
+					tab.Button.BackgroundColor3 = theme.ButtonBg
+					tab.Label.TextColor3 = theme.TextDim
+				end
+
+				TabScrollFrame.Visible = true
+				TabButton.BackgroundColor3 = theme.Panel
+				tabData.Label.TextColor3 = theme.Accent
+				categoryData.CurrentTab = tabData
+			end)
+
+			if isMobile then
+				TabButton.MouseButton1Down:Connect(function()
+					if categoryData.CurrentTab ~= tabData then
+						TabButton.BackgroundColor3 = theme.Panel
+					end
+				end)
+			else
+				TabButton.MouseEnter:Connect(function()
+					if categoryData.CurrentTab ~= tabData then
+						tween(TabButton, {BackgroundColor3 = theme.Panel}, 0.2)
+					end
+				end)
+				TabButton.MouseLeave:Connect(function()
+					if categoryData.CurrentTab ~= tabData then
+						tween(TabButton, {BackgroundColor3 = theme.ButtonBg}, 0.2)
+					end
+				end)
+			end
+
+			table.insert(categoryData.Tabs, tabData)
+
+			if #categoryData.Tabs == 1 then
+				TabScrollFrame.Visible = true
+				TabButton.BackgroundColor3 = theme.Panel
+				tabData.Label.TextColor3 = theme.Accent
+				categoryData.CurrentTab = tabData
+			end
+
+			local Tab = {}
+			Tab.ScrollFrame = TabScrollFrame
+
+			-- Helper to add tooltip to element
+			local function addTooltip(element, tooltipText)
+				if not tooltipText or tooltipText == "" then return end
+				
+				if not isMobile then
+					element.MouseEnter:Connect(function()
+						showTooltip(tooltipText, element)
+					end)
+					element.MouseLeave:Connect(function()
+						hideTooltip()
+					end)
+				else
+					local holdTime = 0
+					local holding = false
+					local connection
+					
+					element.MouseButton1Down:Connect(function()
+						holding = true
+						holdTime = 0
+						
+						connection = RunService.RenderStepped:Connect(function(dt)
+							if holding then
+								holdTime = holdTime + dt
+								if holdTime >= 0.5 then
+									showTooltip(tooltipText, element)
+									connection:Disconnect()
+								end
+							end
+						end)
+					end)
+					
+					element.MouseButton1Up:Connect(function()
+						holding = false
+						if connection then
+							connection:Disconnect()
+						end
+						hideTooltip()
+					end)
+				end
+			end
+
+			function Tab:Button(name, callback, tooltip)
+				local buttonHeight = isMobile and 38 or 42
+				local Button = create("TextButton", {
+					Name = "Button",
+					Size = UDim2.new(1, -10, 0, buttonHeight),
+					BackgroundColor3 = theme.Accent,
+					Text = "",
+					AutoButtonColor = false,
+					Parent = TabScrollFrame
+				})
+				roundify(Button, 8)
+				addGradient(Button, {theme.Accent, theme.AccentBlue}, 45)
+				addTooltip(Button, tooltip)
+
+				create("TextLabel", {
+					Size = UDim2.new(1, -20, 1, 0),
+					Position = UDim2.new(0, 10, 0, 0),
+					BackgroundTransparency = 1,
+					Text = name,
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+					Font = Enum.Font.GothamBold,
+					TextSize = isMobile and 13 or 15,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					Parent = Button
+				})
+
+				table.insert(Window.SearchableElements, {Name = name, Object = Button})
+
+				if isMobile then
+					Button.MouseButton1Down:Connect(function()
+						Button.BackgroundColor3 = theme.AccentHover
+					end)
+					Button.MouseButton1Up:Connect(function()
+						Button.BackgroundColor3 = theme.Accent
+					end)
+				else
+					Button.MouseEnter:Connect(function()
+						tween(Button, {BackgroundColor3 = theme.AccentHover}, 0.2)
+					end)
+					Button.MouseLeave:Connect(function()
+						tween(Button, {BackgroundColor3 = theme.Accent}, 0.2)
+					end)
+				end
+
+				Button.MouseButton1Click:Connect(function()
+					tween(Button, {Size = UDim2.new(1, -10, 0, buttonHeight - 4)}, 0.1)
+					task.wait(0.1)
+					tween(Button, {Size = UDim2.new(1, -10, 0, buttonHeight)}, 0.1)
+
+					if callback then
+						pcall(function()
+							callback()
+						end)
+					end
+				end)
+
+				return Button
+			end
+
+			function Tab:Toggle(name, default, callback, tooltip)
+				local enabled = default or false
+				local toggleHeight = isMobile and 38 or 42
+
+				local ToggleFrame = create("Frame", {
+					Name = "Toggle",
+					Size = UDim2.new(1, -10, 0, toggleHeight),
+					BackgroundColor3 = theme.Panel,
+					Parent = TabScrollFrame
+				})
+				roundify(ToggleFrame, 8)
+				addTooltip(ToggleFrame, tooltip)
+
+				create("TextLabel", {
+					Size = UDim2.new(1, -70, 1, 0),
+					Position = UDim2.new(0, isMobile and 10 or 14, 0, 0),
+					BackgroundTransparency = 1,
+					Text = name,
+					TextColor3 = theme.Text,
+					Font = Enum.Font.GothamSemibold,
+					TextSize = isMobile and 12 or 14,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
+					Parent = ToggleFrame
+				})
+
+				table.insert(Window.SearchableElements, {Name = name, Object = ToggleFrame})
+
+				local switchWidth = isMobile and 40 or 44
+				local switchHeight = isMobile and 20 or 22
+				local ToggleButton = create("TextButton", {
+					Name = "Switch",
+					Size = UDim2.new(0, switchWidth, 0, switchHeight),
+					Position = UDim2.new(1, -(switchWidth + 8), 0.5, -switchHeight/2),
+					BackgroundColor3 = enabled and theme.Accent or theme.ButtonBg,
+					Text = "",
+					AutoButtonColor = false,
+					Parent = ToggleFrame
+				})
+				roundify(ToggleButton, switchHeight/2)
+				if enabled then
+					addGradient(ToggleButton, {theme.Accent, theme.AccentBlue}, 45)
+				end
+
+				local circleSize = isMobile and 14 or 16
+				local circleOffset = isMobile and 2.5 or 3
+				local ToggleCircle = create("Frame", {
+					Name = "Circle",
+					Size = UDim2.new(0, circleSize, 0, circleSize),
+					Position = enabled and UDim2.new(1, -(circleSize + circleOffset), 0.5, -circleSize/2) or UDim2.new(0, circleOffset, 0.5, -circleSize/2),
+					BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+					Parent = ToggleButton
+				})
+				roundify(ToggleCircle, circleSize/2)
+
+				ToggleButton.MouseButton1Click:Connect(function()
+					enabled = not enabled
+
+					if enabled then
+						tween(ToggleButton, {BackgroundColor3 = theme.Accent}, 0.2)
+						addGradient(ToggleButton, {theme.Accent, theme.AccentBlue}, 45)
+					else
+						tween(ToggleButton, {BackgroundColor3 = theme.ButtonBg}, 0.2)
+						for _, child in pairs(ToggleButton:GetChildren()) do
+							if child:IsA("UIGradient") then
+								child:Destroy()
+							end
+						end
+					end
+
+					tween(ToggleCircle, {
+						Position = enabled and UDim2.new(1, -(circleSize + circleOffset), 0.5, -circleSize/2) or UDim2.new(0, circleOffset, 0.5, -circleSize/2)
+					}, 0.2, Enum.EasingStyle.Quad)
+
+					if callback then
+						pcall(function()
+							callback(enabled)
+						end)
+					end
+				end)
+
+				return ToggleFrame
+			end
+
+			function Tab:Dropdown(name, options, callback, tooltip)
+				local selectedOptions = {}
+				local isOpen = false
+
+				local closedHeight = isMobile and 38 or 42
+				local optionHeight = isMobile and 28 or 32
+				local openHeight = closedHeight + (#options * (optionHeight + 3)) + 8
+
+				local DropdownFrame = create("Frame", {
+					Name = "Dropdown",
+					Size = UDim2.new(1, -10, 0, closedHeight),
+					BackgroundColor3 = theme.Panel,
+					ClipsDescendants = true,
+					Parent = TabScrollFrame
+				})
+				roundify(DropdownFrame, 8)
+				addTooltip(DropdownFrame, tooltip)
+
+				table.insert(Window.SearchableElements, {Name = name, Object = DropdownFrame})
+
+				local DropdownHeader = create("TextButton", {
+					Name = "Header",
+					Size = UDim2.new(1, 0, 0, closedHeight),
+					BackgroundTransparency = 1,
+					Text = "",
+					AutoButtonColor = false,
+					Parent = DropdownFrame
+				})
+
+				create("TextLabel", {
+					Size = UDim2.new(1, -50, 1, 0),
+					Position = UDim2.new(0, isMobile and 10 or 14, 0, 0),
+					BackgroundTransparency = 1,
+					Text = name,
+					TextColor3 = theme.Text,
+					Font = Enum.Font.GothamSemibold,
+					TextSize = isMobile and 12 or 14,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
+					Parent = DropdownHeader
+				})
+
+				local Arrow = create("TextLabel", {
+					Size = UDim2.new(0, 20, 0, 20),
+					Position = UDim2.new(1, -30, 0.5, -10),
+					BackgroundTransparency = 1,
+					Text = "▼",
+					TextColor3 = theme.Accent,
+					Font = Enum.Font.GothamBold,
+					TextSize = isMobile and 10 or 11,
+					Parent = DropdownHeader
+				})
+
+				local OptionsFrame = create("Frame", {
+					Name = "Options",
+					Size = UDim2.new(1, -10, 1, -closedHeight - 8),
+					Position = UDim2.new(0, 5, 0, closedHeight + 4),
+					BackgroundTransparency = 1,
+					Parent = DropdownFrame
+				})
+
+				create("UIListLayout", {
+					Padding = UDim.new(0, 3),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+					Parent = OptionsFrame
+				})
+
+				for _, optionName in ipairs(options) do
+					local OptionButton = create("TextButton", {
+						Name = optionName,
+						Size = UDim2.new(1, 0, 0, optionHeight),
+						BackgroundColor3 = theme.ButtonBg,
+						Text = "",
+						AutoButtonColor = false,
+						Parent = OptionsFrame
+					})
+					roundify(OptionButton, 6)
+
+					create("TextLabel", {
+						Size = UDim2.new(1, -35, 1, 0),
+						Position = UDim2.new(0, 10, 0, 0),
+						BackgroundTransparency = 1,
+						Text = optionName,
+						TextColor3 = theme.Text,
+						Font = Enum.Font.Gotham,
+						TextSize = isMobile and 11 or 13,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						TextWrapped = true,
+						Parent = OptionButton
+					})
+
+					local checkSize = isMobile and 16 or 18
+					local Checkmark = create("TextLabel", {
+						Size = UDim2.new(0, checkSize, 0, checkSize),
+						Position = UDim2.new(1, -(checkSize + 6), 0.5, -checkSize/2),
+						BackgroundColor3 = theme.ButtonBg,
+						Text = "",
+						TextColor3 = Color3.fromRGB(255, 255, 255),
+						Font = Enum.Font.GothamBold,
+						TextSize = isMobile and 11 or 13,
+						Parent = OptionButton
+					})
+					roundify(Checkmark, 4)
+					addStroke(Checkmark, theme.Border, 1)
+
+					if isMobile then
+						OptionButton.MouseButton1Down:Connect(function()
+							OptionButton.BackgroundColor3 = theme.ButtonHover
+						end)
+						OptionButton.MouseButton1Up:Connect(function()
+							OptionButton.BackgroundColor3 = theme.ButtonBg
+						end)
+					else
+						OptionButton.MouseEnter:Connect(function()
+							tween(OptionButton, {BackgroundColor3 = theme.ButtonHover}, 0.2)
+						end)
+						OptionButton.MouseLeave:Connect(function()
+							tween(OptionButton, {BackgroundColor3 = theme.ButtonBg}, 0.2)
+						end)
+					end
+
+					OptionButton.MouseButton1Click:Connect(function()
+						if selectedOptions[optionName] then
+							selectedOptions[optionName] = nil
+							Checkmark.Text = ""
+							tween(Checkmark, {BackgroundColor3 = theme.ButtonBg}, 0.2)
+							for _, child in pairs(Checkmark:GetChildren()) do
+								if child:IsA("UIGradient") then
+									child:Destroy()
+								end
+							end
+						else
+							selectedOptions[optionName] = true
+							Checkmark.Text = "✓"
+							tween(Checkmark, {BackgroundColor3 = theme.Accent}, 0.2)
+							addGradient(Checkmark, {theme.Accent, theme.AccentBlue}, 45)
+						end
+
+						if callback then
+							pcall(function()
+								callback(selectedOptions)
+							end)
+						end
+					end)
+				end
+
+				DropdownHeader.MouseButton1Click:Connect(function()
+					isOpen = not isOpen
+
+					if isOpen then
+						tween(DropdownFrame, {Size = UDim2.new(1, -10, 0, openHeight)}, 0.3)
+						tween(Arrow, {Rotation = 180}, 0.3)
+					else
+						tween(DropdownFrame, {Size = UDim2.new(1, -10, 0, closedHeight)}, 0.3)
+						tween(Arrow, {Rotation = 0}, 0.3)
+					end
+				end)
+
+				return DropdownFrame
+			end
+
+			function Tab:Label(text, tooltip)
+				local Label = create("TextLabel", {
+					Name = "Label",
+					Size = UDim2.new(1, -10, 0, isMobile and 28 or 32),
+					BackgroundTransparency = 1,
+					Text = text,
+					TextColor3 = theme.TextDim,
+					Font = Enum.Font.Gotham,
+					TextSize = isMobile and 11 or 13,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
+					Parent = TabScrollFrame
+				})
+				addTooltip(Label, tooltip)
+
+				return Label
+			end
+
+			function Tab:Slider(name, min, max, default, callback, tooltip)
+				local value = default or min
+
+				local sliderHeight = isMobile and 54 or 58
+				local SliderFrame = create("Frame", {
+					Name = "Slider",
+					Size = UDim2.new(1, -10, 0, sliderHeight),
+					BackgroundColor3 = theme.Panel,
+					Parent = TabScrollFrame
+				})
+				roundify(SliderFrame, 8)
+				addTooltip(SliderFrame, tooltip)
+
+				table.insert(Window.SearchableElements, {Name = name, Object = SliderFrame})
+
+				create("TextLabel", {
+					Size = UDim2.new(1, -65, 0, 24),
+					Position = UDim2.new(0, isMobile and 10 or 14, 0, isMobile and 6 or 8),
+					BackgroundTransparency = 1,
+					Text = name,
+					TextColor3 = theme.Text,
+					Font = Enum.Font.GothamSemibold,
+					TextSize = isMobile and 12 or 14,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
+					Parent = SliderFrame
+				})
+
+				local SliderValue = create("TextLabel", {
+					Size = UDim2.new(0, 55, 0, 24),
+					Position = UDim2.new(1, -63, 0, isMobile and 6 or 8),
+					BackgroundTransparency = 1,
+					Text = tostring(value),
+					TextColor3 = theme.Accent,
+					Font = Enum.Font.GothamBold,
+					TextSize = isMobile and 12 or 14,
+					TextXAlignment = Enum.TextXAlignment.Right,
+					Parent = SliderFrame
+				})
+
+				local barHeight = isMobile and 5 or 6
+				local SliderBar = create("Frame", {
+					Size = UDim2.new(1, -(isMobile and 20 or 28), 0, barHeight),
+					Position = UDim2.new(0, isMobile and 10 or 14, 1, -(isMobile and 14 or 16)),
+					BackgroundColor3 = theme.ButtonBg,
+					BorderSizePixel = 0,
+					Parent = SliderFrame
+				})
+				roundify(SliderBar, barHeight/2)
+
+				local SliderFill = create("Frame", {
+					Size = UDim2.new((value - min) / (max - min), 0, 1, 0),
+					BackgroundColor3 = theme.Accent,
+					BorderSizePixel = 0,
+					Parent = SliderBar
+				})
+				roundify(SliderFill, barHeight/2)
+				addGradient(SliderFill, {theme.Accent, theme.AccentBlue}, 45)
+
+				local dragging = false
+
+				local function updateSlider(input)
+					local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+					value = math.floor(min + (max - min) * pos)
+
+					SliderValue.Text = tostring(value)
+					SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+
+					if callback then
+						pcall(function()
+							callback(value)
+						end)
+					end
+				end
+
+				SliderBar.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragging = true
+						updateSlider(input)
+					end
+				end)
+
+				UserInputService.InputEnded:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragging = false
+					end
+				end)
+
+				UserInputService.InputChanged:Connect(function(input)
+					if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+						updateSlider(input)
+					end
+				end)
+
+				return SliderFrame
+			end
+
+			return Tab
+		end
+
+		-- Original Category methods (for backwards compatibility when no tabs)
+		local function addCategoryTooltip(element, tooltipText)
+			if not tooltipText or tooltipText == "" then return end
+			
+			if not isMobile then
+				element.MouseEnter:Connect(function()
+					showTooltip(tooltipText, element)
+				end)
+				element.MouseLeave:Connect(function()
+					hideTooltip()
+				end)
+			else
+				local holdTime = 0
+				local holding = false
+				local connection
+				
+				element.MouseButton1Down:Connect(function()
+					holding = true
+					holdTime = 0
+					
+					connection = RunService.RenderStepped:Connect(function(dt)
+						if holding then
+							holdTime = holdTime + dt
+							if holdTime >= 0.5 then
+								showTooltip(tooltipText, element)
+								connection:Disconnect()
+							end
+						end
+					end)
+				end)
+				
+				element.MouseButton1Up:Connect(function()
+					holding = false
+					if connection then
+						connection:Disconnect()
+					end
+					hideTooltip()
+				end)
+			end
+		end
+
+		function Category:Button(name, callback, tooltip)
 			local buttonHeight = isMobile and 38 or 42
 			local Button = create("TextButton", {
 				Name = "Button",
@@ -610,6 +1383,7 @@ function UILibrary:CreateWindow(config)
 			})
 			roundify(Button, 8)
 			addGradient(Button, {theme.Accent, theme.AccentBlue}, 45)
+			addCategoryTooltip(Button, tooltip)
 
 			create("TextLabel", {
 				Size = UDim2.new(1, -20, 1, 0),
@@ -622,6 +1396,8 @@ function UILibrary:CreateWindow(config)
 				TextXAlignment = Enum.TextXAlignment.Center,
 				Parent = Button
 			})
+
+			table.insert(Window.SearchableElements, {Name = name, Object = Button})
 
 			if isMobile then
 				Button.MouseButton1Down:Connect(function()
@@ -654,7 +1430,7 @@ function UILibrary:CreateWindow(config)
 			return Button
 		end
 
-		function Category:Toggle(name, default, callback)
+		function Category:Toggle(name, default, callback, tooltip)
 			local enabled = default or false
 			local toggleHeight = isMobile and 38 or 42
 
@@ -665,6 +1441,7 @@ function UILibrary:CreateWindow(config)
 				Parent = ScrollFrame
 			})
 			roundify(ToggleFrame, 8)
+			addCategoryTooltip(ToggleFrame, tooltip)
 
 			create("TextLabel", {
 				Size = UDim2.new(1, -70, 1, 0),
@@ -678,6 +1455,8 @@ function UILibrary:CreateWindow(config)
 				TextWrapped = true,
 				Parent = ToggleFrame
 			})
+
+			table.insert(Window.SearchableElements, {Name = name, Object = ToggleFrame})
 
 			local switchWidth = isMobile and 40 or 44
 			local switchHeight = isMobile and 20 or 22
@@ -735,7 +1514,7 @@ function UILibrary:CreateWindow(config)
 			return ToggleFrame
 		end
 
-		function Category:Dropdown(name, options, callback)
+		function Category:Dropdown(name, options, callback, tooltip)
 			local selectedOptions = {}
 			local isOpen = false
 
@@ -751,6 +1530,9 @@ function UILibrary:CreateWindow(config)
 				Parent = ScrollFrame
 			})
 			roundify(DropdownFrame, 8)
+			addCategoryTooltip(DropdownFrame, tooltip)
+
+			table.insert(Window.SearchableElements, {Name = name, Object = DropdownFrame})
 
 			local DropdownHeader = create("TextButton", {
 				Name = "Header",
@@ -893,7 +1675,7 @@ function UILibrary:CreateWindow(config)
 			return DropdownFrame
 		end
 
-		function Category:Label(text)
+		function Category:Label(text, tooltip)
 			local Label = create("TextLabel", {
 				Name = "Label",
 				Size = UDim2.new(1, -10, 0, isMobile and 28 or 32),
@@ -906,11 +1688,12 @@ function UILibrary:CreateWindow(config)
 				TextWrapped = true,
 				Parent = ScrollFrame
 			})
+			addCategoryTooltip(Label, tooltip)
 
 			return Label
 		end
 
-		function Category:Slider(name, min, max, default, callback)
+		function Category:Slider(name, min, max, default, callback, tooltip)
 			local value = default or min
 
 			local sliderHeight = isMobile and 54 or 58
@@ -921,6 +1704,9 @@ function UILibrary:CreateWindow(config)
 				Parent = ScrollFrame
 			})
 			roundify(SliderFrame, 8)
+			addCategoryTooltip(SliderFrame, tooltip)
+
+			table.insert(Window.SearchableElements, {Name = name, Object = SliderFrame})
 
 			create("TextLabel", {
 				Size = UDim2.new(1, -65, 0, 24),
