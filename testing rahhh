@@ -595,7 +595,7 @@ function UILibrary:CreateWindow(config)
         return self.ElementRegistry
     end
 
-    ---[[
+    --[[
         Batch set values.
         Example:
             Window:SetValues({
@@ -611,11 +611,11 @@ function UILibrary:CreateWindow(config)
         end
     end
 
-    ---[[
+    --[[
         SaveConfig / LoadConfig / AutoSave
         Uses writefile / readfile (executor APIs).
         Falls back gracefully if unavailable.
-        
+
         Example:
             Window:SaveConfig()               -- saves to "MyScript_config.json"
             Window:SaveConfig("custom.json")
