@@ -1,26 +1,3 @@
---[[
-    UILibrary v5
-    ─────────────────────────────────────────────────────────────────
-    NEW IN v5
-      • CoreGui parent (falls back to PlayerGui automatically)
-      • Window.Flags["Name"]          → get current value of any element
-      • Window.Flags["Name"] = value  → set value of any element
-      • Window:GetElement("Name")     → returns full API object
-      • Window:SetValues({ Name=val }) → batch-set multiple elements
-      • Window:SaveConfig(filename)   → serialize all values to JSON file
-      • Window:LoadConfig(filename)   → restore all values from JSON file
-      • Window:AutoSave(interval, filename) → periodic auto-save
-      • Every element now returns a rich API (SetValue, GetValue,
-        Show, Hide, Enable, Disable, SetCallback, etc.)
-      • SubCategory elements also return full APIs
-      • Dropdown: SetSelected, GetSelected, ClearSelected, AddOption
-      • Slider: SetValue, GetValue, SetMin, SetMax
-      • Keybind: SetKey, GetKey (unchanged, now registered)
-      • Button: SetCallback, Click (simulate press)
-      • Label: SetText
-    ─────────────────────────────────────────────────────────────────
-]]
-
 local UILibrary = {}
 
 --// Services
